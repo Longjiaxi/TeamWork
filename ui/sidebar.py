@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 
 
 class Sidebar(QListWidget):
+    # 信号定义保留（防止编译报错，暂时不接业务逻辑）
     new_chat_clicked = Signal()
     chat_switch = Signal(str)
     chat_delete = Signal(str)
@@ -33,7 +34,8 @@ class Sidebar(QListWidget):
 
         # 新建聊天按钮
         btn_new = QPushButton("＋新建聊天")
-        btn_new.clicked.connect(self.new_chat_clicked.emit)
+        # 【重点】注释掉业务信号发射，只保留UI按钮
+        # btn_new.clicked.connect(self.new_chat_clicked.emit)
         self.add_btn_anim(btn_new)
 
         # 批量多选按钮
@@ -79,7 +81,35 @@ class Sidebar(QListWidget):
 
     def add_chat(self, name):
         list_item = QListWidgetItem()
+        custom_widget = ChatListItem(name)
+        # 【注释业务信号】只渲染UI，点击item不会触发会话切换/删除
+        # custom_widget.switch_chat.connect(self.chat_switch.emit)
+        # custom_widget.delete_chat.connect(self.chat_delete.emit)
+        list_item.setSizeHint(custom_widget.sizeHint())
+        self.addItem(list_item)
+        self.setItemWidget(list_item, custom_widget)
 
+    def toggle_batch_mode(self):
+        self.batch_open = not self.batch_open
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = self.itemWidget(item)
+            if isinstance(widget, ChatListItem):
+                widget.set_batch_mode(self.batch_open)
+        # 【注释业务信号】批量模式切换只修改UI，不再通知主窗口
+        # if self.batch_open:
+        #     self.enter_batch_mode.emit()
+        # else:
+        #     self.exit_batch_mode.emit()
+
+    def get_checked_chat_names(self):
+        res = []
+        for i in range(self.count()):
+            item = self.item(i)
+            w = self.itemWidget(item)
+            if isinstance(w, ChatListItem) and w.get_checked():
+                res.append(w.chat_name)
+        return res
 
     def set_dark_mode(self, enable: bool):
         self.is_dark = enable
@@ -165,10 +195,3 @@ class Sidebar(QListWidget):
         for w in self.findChildren(QPushButton):
             if w != self.btn_batch:
                 w.setStyleSheet(btn_normal_style)
-
-        # 遍历会话条目切换主题
-        for i in range(self.count()):
-            item = self.item(i)
-            widget = self.itemWidget(item)
-            if hasattr(widget, "set_dark_mode"):
-                widget.set_dark_mode(enable)

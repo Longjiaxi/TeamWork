@@ -67,12 +67,11 @@ class TitleBar(QWidget):
         # 布局顺序：左侧标签 → 空白弹性区 → 麦克风下拉 → 主题/设置/关闭
         root_layout.addWidget(tab_widget)
         root_layout.addItem(spacer)
-        root_layout.addWidget(self.mic_combo)
+
         root_layout.addSpacing(8)
         root_layout.addWidget(self.theme_btn)
         root_layout.addWidget(self.setting_btn)
         root_layout.addWidget(self.close_btn)
 
         self.is_dark = False
-        self.update_style()
 

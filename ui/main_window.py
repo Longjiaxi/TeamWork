@@ -1,0 +1,174 @@
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QApplication,
+    QPushButton,
+    QFrame,
+    QLabel,
+    QDialog,
+    QComboBox
+)
+from PySide6.QtGui import QFont
+from PySide6.QtCore import QThread, Signal, Qt
+from ui.sidebar import Sidebar
+from ui.title_bar import TitleBar
+
+from PySide6.QtWidgets import QFileDialog
+import os
+from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QMessageBox
+
+
+class AIRequestThread(QThread):
+    """流式AI请求线程【占位，后续对接AI接口】"""
+    stream_signal = Signal(str)    # 流式返回文本
+    finish_signal = Signal(str)    # 对话结束
+
+    def __init__(self, context_list, prompt):
+        super().__init__()
+        self.context = context_list
+        self.user_prompt = prompt
+
+    def run(self):
+        # AI接口逻辑预留位置
+        pass
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("AI Chat")
+        self.setWindowIcon(QIcon("res/icon.png"))
+        self.resize(1200, 800)
+
+        # OCR引擎延迟初始化
+        self.ocr_engine = None
+
+        # 侧边栏折叠标记
+        self.sidebar_expanded = True
+        self.sidebar_origin_width = 200
+
+        # ----------------------中心部件和整体布局----------------------
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # 顶部标题栏
+        self.title_bar = TitleBar()
+        main_layout.addWidget(self.title_bar)
+
+        # 水平布局：侧边栏 + 聊天主区域
+        h_layout = QHBoxLayout()
+        h_layout.setContentsMargins(0,0,0,0)
+        h_layout.setSpacing(0)
+        main_layout.addLayout(h_layout)
+
+        # 实例化侧边栏
+        self.sidebar = Sidebar()
+        h_layout.addWidget(self.sidebar)
+
+        # 右侧分割线
+        divider = QFrame()
+        divider.setFixedWidth(1)
+        divider.setStyleSheet("background:#cccccc;")
+        h_layout.addWidget(divider)
+
+        # 右侧空白聊天面板（占位）
+        chat_area = QWidget()
+        chat_area.setStyleSheet("background:#cccccc;")
+        h_layout.addWidget(chat_area, stretch=1)
+
+
+        # =====================信号绑定=====================
+        # 新建聊天按钮信号
+        self.sidebar.new_chat_clicked.connect(self.new_chat)
+        # 选中对话
+        self.sidebar.chat_switch.connect(self.switch_conversation)
+        # 删除单条对话
+        self.sidebar.chat_delete.connect(self.delete_conversation)
+
+        # 批量相关信号预留
+        self.sidebar.enter_batch_mode.connect(self.show_batch_bar)
+        self.sidebar.exit_batch_mode.connect(self.hide_batch_bar)
+
+        # 加载主题相关
+        current_theme = "light"
+        if current_theme == "light":
+            self.title_bar.theme_btn.setText("☀ 浅色模式")
+        else:
+            self.title_bar.theme_btn.setText("🌙 夜间模式")
+
+        # 底部批量操作栏（暂时隐藏，保留代码）
+        self.batch_bar = QWidget()
+        batch_layout = QHBoxLayout(self.batch_bar)
+        self.batch_bar.setVisible(False)
+        main_layout.addWidget(self.batch_bar)
+
+    # =========新建对话：自动寻找最小空缺编号=========
+    def new_chat(self):
+        name_list = []
+        # 遍历侧边栏所有item，跳过顶部新建按钮 和 分割线这两行
+        for i in range(self.sidebar.count()):
+            item = self.sidebar.item(i)
+            widget = self.sidebar.itemWidget(item)
+            if hasattr(widget, "chat_name"):
+                try:
+                    num = int(widget.chat_name.replace("对话", ""))
+                    name_list.append(num)
+                except:
+                    pass
+        # 寻找最小可用编号
+        min_id = 1
+        while min_id in name_list:
+            min_id += 1
+        new_name = f"对话{min_id}"
+        self.sidebar.add_chat(new_name)
+
+    # =========删除对话=========
+    def delete_conversation(self, chat_name):
+        for i in range(self.sidebar.count()):
+            item = self.sidebar.item(i)
+            widget = self.sidebar.itemWidget(item)
+            if hasattr(widget, "chat_name") and widget.chat_name == chat_name:
+                self.sidebar.takeItem(i)
+                break
+
+    # 切换选中对话（预留，后续加载聊天记录）
+    def switch_conversation(self, chat_name):
+        pass
+
+    # 侧边栏展开收缩
+    def toggle_sidebar(self):
+        pass
+
+    # 主题切换
+    def toggle_theme(self):
+        pass
+
+    # 批量删除相关预留函数
+    def show_batch_bar(self):
+        self.batch_bar.setVisible(True)
+    def hide_batch_bar(self):
+        self.batch_bar.setVisible(False)
+
+    def batch_delete(self):
+        pass
+
+    # 语音识别、文件上传、AI对话逻辑全部预留占位
+    def handle_ai_message(self):
+        pass
+
+    def upload_file(self):
+        pass
+
+    def speech_recognize(self):
+        pass
+
+    def closeEvent(self, event):
+        pass

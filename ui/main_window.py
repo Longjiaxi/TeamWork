@@ -10,16 +10,14 @@ from PySide6.QtWidgets import (
     QDialog,
     QComboBox
 )
-from PySide6.QtGui import QFont
-from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import QThread, Signal, Qt, QPropertyAnimation, QEasingCurve, QTimer
 from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
+from ui.input_bar import InputBar
 
 from PySide6.QtWidgets import QFileDialog
 import os
-from PySide6.QtCore import QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QIcon
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
 
@@ -79,9 +77,21 @@ class MainWindow(QMainWindow):
         divider.setStyleSheet("background:#cccccc;")
         h_layout.addWidget(divider)
 
-        # 右侧空白聊天面板（占位）
+        # 右侧聊天面板，垂直布局：上方聊天展示区，底部输入框
         chat_area = QWidget()
-        chat_area.setStyleSheet("background:#cccccc;")
+        chat_layout = QVBoxLayout(chat_area)
+        chat_layout.setContentsMargins(12,12,12,12)
+        chat_layout.setSpacing(10)
+
+        # 聊天消息显示区域（占位，以后放消息列表）
+        chat_display = QWidget()
+        chat_display.setStyleSheet("background:#ffffff; border-radius:8px;")
+        chat_layout.addWidget(chat_display, stretch=1)
+
+        # --------实例化我们的底部输入栏组件--------
+        self.input_bar = InputBar()
+        chat_layout.addWidget(self.input_bar)
+
         h_layout.addWidget(chat_area, stretch=1)
 
 
@@ -103,6 +113,13 @@ class MainWindow(QMainWindow):
             self.title_bar.theme_btn.setText("☀ 浅色模式")
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
+
+        # =========输入框组件信号绑定新增=========
+        self.input_bar.sig_send_text.connect(self.on_send_text)
+        self.input_bar.sig_file_selected.connect(self.on_select_file)
+        self.input_bar.sig_img_selected.connect(self.on_select_image)
+        self.input_bar.sig_voice_click.connect(self.on_voice_input)
+        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
         # 底部批量操作栏（暂时隐藏，保留代码）
         self.batch_bar = QWidget()
@@ -159,6 +176,27 @@ class MainWindow(QMainWindow):
 
     def batch_delete(self):
         pass
+
+    # ----------------输入栏回调函数----------------
+    def on_send_text(self, text):
+        print("发送文本：", text)
+        # 后续在这里，把消息加到chat_display，调用AI线程
+
+    def on_select_file(self, file_path):
+        print("选择文件：", file_path)
+        # 文件上传预留
+
+    def on_select_image(self, img_path):
+        print("选择图片：", img_path)
+        # 图片上传预留
+
+    def on_voice_input(self):
+        print("语音输入点击")
+        # 语音预留
+
+    def on_clear_chat(self):
+        print("清空对话")
+        # 清空聊天展示区预留
 
     # 语音识别、文件上传、AI对话逻辑全部预留占位
     def handle_ai_message(self):

@@ -1,223 +1,123 @@
-from PySide6.QtWidgets import QListWidget, QListWidgetItem, QWidget, QHBoxLayout, QPushButton, QLabel, QMessageBox, QFrame
-from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtWidgets import (QListWidget, QListWidgetItem, QWidget, QHBoxLayout,
+                               QPushButton, QCheckBox)
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import QSize
 
 
-class ChatListItem(QWidget):
-    # 信号：选中对话、删除当前对话
-    switch_chat = Signal()
-    delete_chat = Signal()
-
+class ChatItemWidget(QWidget):
     def __init__(self, chat_name):
         super().__init__()
         self.chat_name = chat_name
-        self.batch_mode = False
-
-        # 水平布局
-        layout = QHBoxLayout()
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4,4,4,4)
         layout.setSpacing(6)
 
-        # 对话名称文本
-        self.label_name = QLabel(chat_name)
-        layout.addWidget(self.label_name)
+        self.checkbox = QCheckBox()
+        self.checkbox.setVisible(False)
+        layout.addWidget(self.checkbox)
 
-        layout.addStretch() # 占位，把按钮挤到最右侧
+        self.btn_name = QPushButton(chat_name)
+        self.btn_name.setFlat(True)
+        layout.addWidget(self.btn_name, stretch=1)
 
-        # ==========删除按钮 × 叉号正方形按钮==========
         self.btn_del = QPushButton("×")
-        self.btn_del.setFixedSize(28, 28) # 正方形
-        self.btn_del.setStyleSheet("""
-            QPushButton{
-                border:none;
-                background:transparent;
-                font-size:20px;
-                color:#444444;
-            }
-            QPushButton:hover{
-                background:#dddddd;
-                border-radius:4px;
-            }
-        """)
-        self.btn_del.clicked.connect(self.delete_chat.emit)
+        self.btn_del.setFixedSize(24,24)
         layout.addWidget(self.btn_del)
+        self.setMinimumHeight(36)
 
-        self.setLayout(layout)
-
-    def set_batch_mode(self, open_flag):
-        self.batch_mode = open_flag
-
-    def get_checked(self):
-        return False
+    def set_batch_mode(self, enable: bool):
+        self.checkbox.setVisible(enable)
+        if not enable:
+            self.checkbox.setChecked(False)
 
 
 class Sidebar(QListWidget):
-    # 定义信号
     new_chat_clicked = Signal()
     chat_switch = Signal(str)
     chat_delete = Signal(str)
-    enter_batch_mode = Signal()
-    exit_batch_mode = Signal()
+    # 新增信号：点击菜单按钮，通知主窗口显示底部操作栏
+    menu_clicked = Signal(bool)
 
     def __init__(self):
         super().__init__()
-        self.setFixedWidth(200)
-        self.setSpacing(6)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        font = QFont("微软雅黑", 10)
-        self.setFont(font)
-        self.batch_open = False
-        self.is_dark = False
+        self.setObjectName("Sidebar")
+        self.setSpacing(2)
+        self.batch_mode = False  # 标记当前是否开启批量多选
 
-        # ==========顶部条目：新建聊天 + 右侧≡批量按钮==========
+        # 顶部行：新建聊天 + ☰按钮
         top_item = QListWidgetItem()
         top_widget = QWidget()
         top_layout = QHBoxLayout(top_widget)
-        top_layout.setContentsMargins(4, 4, 4, 4)
-        top_layout.setSpacing(4)
+        top_layout.setContentsMargins(4,4,4,4)
+        top_layout.setSpacing(6)
 
-        # 新建聊天按钮
-        btn_new = QPushButton("＋新建聊天")
+        btn_new = QPushButton("+ 新建聊天")
         btn_new.clicked.connect(self.new_chat_clicked.emit)
-        self.add_btn_anim(btn_new)
-
-        # 保留右上角批量≡按钮
-        self.btn_batch = QPushButton("≡")
-        self.btn_batch.setFixedSize(32, 32)
-        self.btn_batch.clicked.connect(self.toggle_batch_mode)
-        self.add_btn_anim(self.btn_batch)
-
         top_layout.addWidget(btn_new)
-        top_layout.addStretch()
-        top_layout.addWidget(self.btn_batch)
 
-        top_item.setSizeHint(top_widget.sizeHint())
+        # ====== 关键修复：增加拉伸，将☰按钮挤到最右侧 ======
+        top_layout.addStretch(1)
+
+        self.menu_btn = QPushButton("☰")
+        self.menu_btn.setFixedSize(30,28)
+        top_layout.addWidget(self.menu_btn)
+        # 绑定菜单点击事件
+        self.menu_btn.clicked.connect(self.on_menu_click)
+
+        top_item.setSizeHint(QSize(200, 36))
         self.addItem(top_item)
         self.setItemWidget(top_item, top_widget)
 
-        # =====================【新增：水平分割线】=====================
-        line_item = QListWidgetItem()
-        line_widget = QWidget()
-        line_layout = QHBoxLayout(line_widget)
-        line_layout.setContentsMargins(8, 4, 8, 4)
-        line_layout.setSpacing(0)
-        h_line = QFrame()
-        h_line.setFrameShape(QFrame.HLine)
-        h_line.setStyleSheet("background:#dcdfe6; height:1px;")
-        line_layout.addWidget(h_line)
-        line_item.setSizeHint(line_widget.sizeHint())
-        # ==========修复这一行，分割线不可选中==========
-        line_item.setFlags(line_item.flags() & ~Qt.ItemIsSelectable)
-        self.addItem(line_item)
-        self.setItemWidget(line_item, line_widget)
+        # 灰色分隔线
+        sep_item = QListWidgetItem()
+        sep_item.setFlags(Qt.NoItemFlags)
+        sep_item.setSizeHint(QSize(200, 2))  # 高度2像素，横向铺满侧边栏
+        self.addItem(sep_item)
+        sep_widget = QWidget()
+        sep_widget.setStyleSheet("background-color:#cccccc;")
+        self.setItemWidget(sep_item, sep_widget)
 
-        # 初始化主题样式
-        self.set_dark_mode(False)
+    def on_menu_click(self):
+        # 切换批量模式开关
+        self.batch_mode = not self.batch_mode
+        self.set_all_chat_item_batch(self.batch_mode)
+        # 向外发送信号，通知主窗口显示/隐藏底部删除按钮
+        self.menu_clicked.emit(self.batch_mode)
 
-    def add_btn_anim(self, btn: QPushButton):
-        """按钮点击动画"""
-        anim_down = QPropertyAnimation(btn, b"geometry")
-        anim_down.setDuration(80)
-        anim_up = QPropertyAnimation(btn, b"geometry")
-        anim_up.setDuration(80)
+    def set_all_chat_item_batch(self, enable):
+        print(f"【SIDEBAR DEBUG】设置所有条目批量模式 {enable}")
+        for i in range(self.count()):
+            item = self.item(i)
+            w = self.itemWidget(item)
+            # 跳过顶部的top_widget、分割线，只处理ChatItemWidget
+            if w and hasattr(w, "set_batch_mode"):
+                print(f"【SIDEBAR DEBUG】找到对话：{w.chat_name}")
+                w.set_batch_mode(enable)
 
-        def pressed():
-            r = btn.geometry()
-            anim_down.setStartValue(r)
-            anim_down.setEndValue(r.adjusted(1,1,-1,-1))
-            anim_down.start()
+    def add_chat(self, chat_name):
+        item = QListWidgetItem()
+        chat_widget = ChatItemWidget(chat_name)
+        item.setSizeHint(chat_widget.sizeHint())
+        self.addItem(item)
+        self.setItemWidget(item, chat_widget)
+        chat_widget.btn_name.clicked.connect(lambda: self.chat_switch.emit(chat_name))
+        chat_widget.btn_del.clicked.connect(lambda: self.chat_delete.emit(chat_name))
+        # ========= 修改这里：新增聊天默认永远不显示复选框 =========
+        chat_widget.set_batch_mode(False)
 
-        def released():
-            r = btn.geometry()
-            anim_up.setStartValue(r)
-            anim_up.setEndValue(r.adjusted(-1,-1,1,1))
-            anim_up.start()
+    def get_selected_chat_names(self):
+        selected = []
+        for i in range(self.count()):
+            item = self.item(i)
+            w = self.itemWidget(item)
+            if w and hasattr(w, "checkbox"):
+                if w.checkbox.isChecked():
+                    selected.append(w.chat_name)
+        return selected
 
-        btn.pressed.connect(pressed)
-        btn.released.connect(released)
-
-    def add_chat(self, name):
-        """添加对话条目，每条对话带×删除按钮"""
-        list_item = QListWidgetItem()
-        custom_widget = ChatListItem(name)
-        custom_widget.switch_chat.connect(lambda: self.chat_switch.emit(name))
-        custom_widget.delete_chat.connect(lambda: self.chat_delete.emit(name))
-        list_item.setSizeHint(custom_widget.sizeHint())
-        self.addItem(list_item)
-        self.setItemWidget(list_item, custom_widget)
-
-    def toggle_batch_mode(self):
-        """顶部≡批量按钮点击事件，预留功能"""
-        self.batch_open = not self.batch_open
-        if self.batch_open:
-            self.enter_batch_mode.emit()
-        else:
-            self.exit_batch_mode.emit()
-
-    def get_checked_chat_names(self):
-        return []
-
-    def set_dark_mode(self, enable: bool):
-        self.is_dark = enable
-        if enable:
-            self.setStyleSheet("""
-            QListWidget{
-                background:#1e1e1e;
-                border:1px solid #3a3a3a;
-                border-radius:10px;
-                outline:none;
-            }
-            QListWidget::item{
-                background:transparent;
-            }
-            """)
-            btn_normal_style = """
-            QPushButton {
-                border: none;
-                background-color: #323232;
-                padding:4px 8px;
-                font-size:14px;
-                border-radius:6px;
-                color:#eeeeee;
-            }
-            QPushButton:hover {
-                background-color:#3d3d3d;
-            }
-            """
-            # 深色模式分割线颜色
-            for i in range(self.count()):
-                item_w = self.itemWidget(self.item(i))
-                if hasattr(item_w, "findChildren"):
-                    frames = item_w.findChildren(QFrame)
-                    for f in frames:
-                        f.setStyleSheet("background:#444444;height:1px;")
-        else:
-            self.setStyleSheet("""
-            QListWidget{
-                background:#ffffff;
-                border:1px solid #DCDFE6;
-                border-radius:10px;
-                outline:none;
-            }
-            QListWidget::item{
-                background:transparent;
-            }
-            """)
-            btn_normal_style = """
-            QPushButton {
-                border: none;
-                background-color: #f3f4f6;
-                padding:4px 8px;
-                font-size:14px;
-                border-radius:6px;
-                color:#444444;
-            }
-            QPushButton:hover {
-                background-color:#e5e7eb;
-            }
-            """
-        # 遍历所有按钮，排除批量按钮，设置样式
-        for w in self.findChildren(QPushButton):
-            if w != self.btn_batch:
-                w.setStyleSheet(btn_normal_style)
+    def close_batch_mode(self):
+        # 强制关闭批量多选
+        self.batch_mode = False
+        self.set_all_chat_item_batch(False)
+        # 发射信号，通知主窗口隐藏底部按钮栏
+        self.menu_clicked.emit(False)

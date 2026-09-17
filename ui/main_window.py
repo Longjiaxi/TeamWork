@@ -120,18 +120,7 @@ class MainWindow(QMainWindow):
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
 
-<<<<<<< HEAD
-        # =========输入框组件信号绑定新增=========
-        self.input_bar.sig_send_text.connect(self.on_send_text)
-        self.input_bar.sig_file_selected.connect(self.on_select_file)
-        self.input_bar.sig_img_selected.connect(self.on_select_image)
-        self.input_bar.sig_voice_click.connect(self.on_voice_input)
-        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
-        # 底部批量操作栏（暂时隐藏，保留代码）
-=======
-        # 底部批量操作栏【先创建按钮，再绑定！】
->>>>>>> origin/feature/sy
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)

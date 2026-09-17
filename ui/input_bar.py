@@ -167,3 +167,4 @@ class InputBar(QWidget):
 
     def on_clear(self):
         self.sig_clear_click.emit()
+

@@ -16,7 +16,6 @@ from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
 from ui.input_bar import InputBar
 from ui.chat_area import ChatArea
-
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
@@ -66,12 +65,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("AI Chat")
         self.setWindowIcon(QIcon("res/icon.png"))
         self.resize(1200, 800)
-        # 新增下面这一行
-        self.context_history = []
 
+        self.context_history = []
+        self.batch_mode = False
         # OCR引擎延迟初始化
         self.ocr_engine = None
-
         # 侧边栏折叠标记
         self.sidebar_expanded = True
         self.sidebar_origin_width = 200
@@ -96,6 +94,9 @@ class MainWindow(QMainWindow):
         # 实例化侧边栏
         self.sidebar = Sidebar()
         h_layout.addWidget(self.sidebar)
+        self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
+        self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
+
 
         # 右侧分割线
         divider = QFrame()
@@ -109,16 +110,14 @@ class MainWindow(QMainWindow):
         chat_layout.setContentsMargins(12,12,12,12)
         chat_layout.setSpacing(10)
 
-        # 聊天消息显示区域（占位，以后放消息列表）
+        # 聊天消息显示区域
         self.chat_display = ChatArea()
         chat_layout.addWidget(self.chat_display, stretch=1)
 
         # --------实例化我们的底部输入栏组件--------
         self.input_bar = InputBar()
         chat_layout.addWidget(self.input_bar)
-
         h_layout.addWidget(chat_area, stretch=1)
-
 
         # =====================信号绑定=====================
         # 新建聊天按钮信号
@@ -128,9 +127,12 @@ class MainWindow(QMainWindow):
         # 删除单条对话
         self.sidebar.chat_delete.connect(self.delete_conversation)
 
-        # 批量相关信号预留
-        self.sidebar.enter_batch_mode.connect(self.show_batch_bar)
-        self.sidebar.exit_batch_mode.connect(self.hide_batch_bar)
+        # =========输入框组件信号绑定=========
+        self.input_bar.sig_send_text.connect(self.on_send_text)
+        self.input_bar.sig_file_selected.connect(self.on_select_file)
+        self.input_bar.sig_img_selected.connect(self.on_select_image)
+        self.input_bar.sig_voice_click.connect(self.on_voice_input)
+        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
         # 加载主题相关
         current_theme = "light"
@@ -139,17 +141,22 @@ class MainWindow(QMainWindow):
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
 
-        # =========输入框组件信号绑定新增=========
-        self.input_bar.sig_send_text.connect(self.on_send_text)
-        self.input_bar.sig_file_selected.connect(self.on_select_file)
-        self.input_bar.sig_img_selected.connect(self.on_select_image)
-        self.input_bar.sig_voice_click.connect(self.on_voice_input)
-        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
-
-        # 底部批量操作栏（暂时隐藏，保留代码）
+        # 底部批量操作栏【先创建按钮，再绑定！】
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
+
+        self.btn_batch_del = QPushButton("确定删除")
+        self.btn_cancel = QPushButton("取消")
+
+        # ==========事件绑定==========
+        self.btn_batch_del.clicked.connect(self.batch_delete)
+        # 取消按钮：关闭批量模式，和右上角三条杠关闭效果一致
+        self.btn_cancel.clicked.connect(self.cancel_batch)
+
+        batch_layout.addStretch()
+        batch_layout.addWidget(self.btn_batch_del)
+        batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
 
     # =========新建对话：自动寻找最小空缺编号=========
@@ -195,14 +202,49 @@ class MainWindow(QMainWindow):
     def toggle_theme(self):
         pass
 
-    # 批量删除相关预留函数
+    # 批量删除相关函数
     def show_batch_bar(self):
         self.batch_bar.setVisible(True)
+
     def hide_batch_bar(self):
         self.batch_bar.setVisible(False)
 
+    def on_toggle_batch(self):
+        self.batch_mode = not self.batch_mode
+        print(f"【MAIN DEBUG】主窗口批量模式 {self.batch_mode}")
+        if self.batch_mode:
+            self.show_batch_bar()
+        else:
+            self.hide_batch_bar()
+        self.sidebar.set_all_chat_item_batch(self.batch_mode)
+
     def batch_delete(self):
-        pass
+        selected_names = self.sidebar.get_selected_chat_names()
+        if not selected_names:
+            QMessageBox.information(self, "提示", "请勾选要删除的对话！")
+            return
+        # 确认弹窗
+        ret = QMessageBox.question(self, "确认删除", f"确定删除选中{len(selected_names)}条对话吗？",
+                                   QMessageBox.Yes | QMessageBox.No)
+        if ret == QMessageBox.Yes:
+            for name in selected_names:
+                self.delete_conversation(name)
+        # 删除完成，自动退出批量模式
+        self.sidebar.set_all_chat_item_batch(False)
+        self.batch_mode = False
+        self.hide_batch_bar()
+
+    def on_sidebar_menu(self, batch_enable):
+        if batch_enable:
+            self.show_batch_bar()
+        else:
+            self.hide_batch_bar()
+
+    def cancel_batch(self):
+        # 取消按钮：关闭批量模式，和右上角☰关闭效果完全一致
+        self.batch_mode = False
+        self.sidebar.set_all_chat_item_batch(False)
+        self.hide_batch_bar()
 
     # ----------------输入栏回调函数----------------
     def on_send_text(self, text):
@@ -232,6 +274,7 @@ class MainWindow(QMainWindow):
     def on_clear_chat(self):
         print("清空对话")
         # 清空聊天展示区预留
+
     def add_chat_bubble(self, text, is_user):
         # 渲染消息气泡
         self.chat_display.add_bubble(text, is_user)
@@ -245,7 +288,6 @@ class MainWindow(QMainWindow):
         self.add_chat_bubble(full_text, is_user=False)
         self.context_history.append({"role": "assistant", "content": full_text})
 
-
     # 语音识别、文件上传、AI对话逻辑全部预留占位
     def handle_ai_message(self):
         pass
@@ -258,3 +300,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         pass
+
+
+if __name__ == "__main__":
+    import sys
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())

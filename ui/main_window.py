@@ -8,6 +8,7 @@ from ui.input_bar import InputBar
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
+from ui.chat_area import ChatArea
 
 
 class AIRequestThread(QThread):
@@ -359,8 +360,8 @@ QFrame{background:#2b2b2b;}
         self.batch_mode = False
         self.hide_batch_bar()
 
-            # 仅新增这一行，删除完成自动退出多选，原有所有逻辑不动
-            self.sidebar.close_batch_mode()
+
+        self.sidebar.close_batch_mode()
 
 
     def on_sidebar_menu(self, batch_enable):

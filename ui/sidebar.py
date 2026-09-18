@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (QListWidget, QListWidgetItem, QWidget, QHBoxLayou
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtCore import QSize
 
-
 class ChatItemWidget(QWidget):
     def __init__(self, chat_name):
         super().__init__()
@@ -85,25 +84,26 @@ class Sidebar(QListWidget):
         self.menu_clicked.emit(self.batch_mode)
 
     def set_all_chat_item_batch(self, enable):
-        print(f"【SIDEBAR DEBUG】设置所有条目批量模式 {enable}")
         for i in range(self.count()):
             item = self.item(i)
             w = self.itemWidget(item)
-            # 跳过顶部的top_widget、分割线，只处理ChatItemWidget
+            # 跳过顶部按钮行、分割线，只处理对话条目
             if w and hasattr(w, "set_batch_mode"):
-                print(f"【SIDEBAR DEBUG】找到对话：{w.chat_name}")
                 w.set_batch_mode(enable)
 
     def add_chat(self, chat_name):
         item = QListWidgetItem()
         chat_widget = ChatItemWidget(chat_name)
-        item.setSizeHint(chat_widget.sizeHint())
+        item.setSizeHint(QSize(200,36))
         self.addItem(item)
         self.setItemWidget(item, chat_widget)
-        chat_widget.btn_name.clicked.connect(lambda: self.chat_switch.emit(chat_name))
-        chat_widget.btn_del.clicked.connect(lambda: self.chat_delete.emit(chat_name))
-        # ========= 修改这里：新增聊天默认永远不显示复选框 =========
+        chat_widget.btn_name.clicked.connect(lambda checked, w=chat_widget: self.chat_switch.emit(w.chat_name))
+        # 修复：实时读取控件最新chat_name，重命名后也能正确删除
+        chat_widget.btn_del.clicked.connect(lambda checked, w=chat_widget: self.chat_delete.emit(w.chat_name))
+        # 新增聊天默认不显示复选框
         chat_widget.set_batch_mode(False)
+        # 返回聊天控件实例给主窗口
+        return chat_widget
 
     def get_selected_chat_names(self):
         selected = []
@@ -116,8 +116,7 @@ class Sidebar(QListWidget):
         return selected
 
     def close_batch_mode(self):
-        # 强制关闭批量多选
+        # 强制关闭批量多选模式
         self.batch_mode = False
         self.set_all_chat_item_batch(False)
-        # 发射信号，通知主窗口隐藏底部按钮栏
         self.menu_clicked.emit(False)

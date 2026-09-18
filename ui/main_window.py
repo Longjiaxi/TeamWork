@@ -22,9 +22,9 @@ from PySide6.QtWidgets import QMessageBox
 
 
 class AIRequestThread(QThread):
-    """流式AI请求线程【对接通义千问】"""
-    stream_signal = Signal(str)    # 流式返回文本
-    finish_signal = Signal(str)    # 对话结束
+    """AI请求线程【对接通义千问】"""
+    stream_signal = Signal(str)
+    finish_signal = Signal(str)
 
     def __init__(self, context_list, prompt):
         super().__init__()
@@ -33,7 +33,6 @@ class AIRequestThread(QThread):
 
     def run(self):
         import requests
-        # ========= 在这里填入你的 DashScope API Key =========
         api_key = "sk-ws-H.PHLIIYE.AKpG.MEUCIHwN-veYrNHmZ2apoLGGWjHRVgxygPuZuASSkW82wXYdAiEA67G3MSICyubQ9wvKC-Zigzqdl2PHyysJDt1nfQkRLVg"
         url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
         headers = {
@@ -41,10 +40,9 @@ class AIRequestThread(QThread):
             "Content-Type": "application/json"
         }
         messages = self.context.copy()
-        # ========新增系统提示词，强制中文回答========
         system_msg = {"role": "system",
-                      "content": "你是中文AI助手，所有回答必须使用中文，禁止使用英文，简洁清晰地回答用户问题。"}
-        messages.insert(0, system_msg)  # 插到列表最前面
+                      "content": "你是中文AI助手，所有回答必须使用中文，简洁清晰地回答用户问题。"}
+        messages.insert(0, system_msg)
         messages.append({"role": "user", "content": self.user_prompt})
         data = {
             "model": "qwen-turbo",
@@ -68,80 +66,66 @@ class MainWindow(QMainWindow):
 
         self.context_history = []
         self.batch_mode = False
-        # OCR引擎延迟初始化
         self.ocr_engine = None
-        # 侧边栏折叠标记
         self.sidebar_expanded = True
         self.sidebar_origin_width = 200
+        self.current_editing_chat_item = None
 
-        # ----------------------中心部件和整体布局----------------------
+        # 对话存储：每个对话独立保存消息列表
+        self.conversation_store = {}
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 顶部标题栏
         self.title_bar = TitleBar()
         main_layout.addWidget(self.title_bar)
 
-        # 水平布局：侧边栏 + 聊天主区域
         h_layout = QHBoxLayout()
-        h_layout.setContentsMargins(0,0,0,0)
+        h_layout.setContentsMargins(0, 0, 0, 0)
         h_layout.setSpacing(0)
         main_layout.addLayout(h_layout)
 
-        # 实例化侧边栏
         self.sidebar = Sidebar()
         h_layout.addWidget(self.sidebar)
         self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
-        self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
 
-
-        # 右侧分割线
         divider = QFrame()
         divider.setFixedWidth(1)
         divider.setStyleSheet("background:#cccccc;")
         h_layout.addWidget(divider)
 
-        # 右侧聊天面板，垂直布局：上方聊天展示区，底部输入框
         chat_area = QWidget()
         chat_layout = QVBoxLayout(chat_area)
-        chat_layout.setContentsMargins(12,12,12,12)
+        chat_layout.setContentsMargins(12, 12, 12, 12)
         chat_layout.setSpacing(10)
 
-        # 聊天消息显示区域
         self.chat_display = ChatArea()
         chat_layout.addWidget(self.chat_display, stretch=1)
 
-        # --------实例化我们的底部输入栏组件--------
         self.input_bar = InputBar()
         chat_layout.addWidget(self.input_bar)
         h_layout.addWidget(chat_area, stretch=1)
 
-        # =====================信号绑定=====================
-        # 新建聊天按钮信号
+        # 绑定你原来的信号，不改 sidebar 和 input_bar
         self.sidebar.new_chat_clicked.connect(self.new_chat)
-        # 选中对话
         self.sidebar.chat_switch.connect(self.switch_conversation)
-        # 删除单条对话
         self.sidebar.chat_delete.connect(self.delete_conversation)
 
-        # =========输入框组件信号绑定=========
         self.input_bar.sig_send_text.connect(self.on_send_text)
         self.input_bar.sig_file_selected.connect(self.on_select_file)
         self.input_bar.sig_img_selected.connect(self.on_select_image)
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
-        # 加载主题相关
         current_theme = "light"
         if current_theme == "light":
             self.title_bar.theme_btn.setText("☀ 浅色模式")
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
 
-        # 底部批量操作栏【先创建按钮，再绑定！】
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
@@ -149,9 +133,7 @@ class MainWindow(QMainWindow):
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
 
-        # ==========事件绑定==========
         self.btn_batch_del.clicked.connect(self.batch_delete)
-        # 取消按钮：关闭批量模式，和右上角三条杠关闭效果一致
         self.btn_cancel.clicked.connect(self.cancel_batch)
 
         batch_layout.addStretch()
@@ -159,50 +141,90 @@ class MainWindow(QMainWindow):
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
 
-    # =========新建对话：自动寻找最小空缺编号=========
     def new_chat(self):
-        # 新建对话清空上下文
+        # 新建对话，移除旧的重命名逻辑，改名逻辑移到发送首条消息时
+        self.chat_display.clear()
         self.context_history = []
+        self.current_editing_chat_item = None
+
+        # 收集现有对话编号，只读取有效的对话条目（排除顶部按钮、分割线）
         name_list = []
-        # 遍历侧边栏所有item，跳过顶部新建按钮 和 分割线这两行
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
             widget = self.sidebar.itemWidget(item)
-            if hasattr(widget, "chat_name"):
+            # 只有带chat_name的才是对话条目，跳过顶部+新建按钮和分割线
+            if widget and hasattr(widget, "chat_name"):
                 try:
                     num = int(widget.chat_name.replace("对话", ""))
                     name_list.append(num)
                 except:
                     pass
-        # 寻找最小可用编号
+
         min_id = 1
         while min_id in name_list:
             min_id += 1
         new_name = f"对话{min_id}"
         self.sidebar.add_chat(new_name)
 
-    # =========删除对话=========
+        new_item = self.sidebar.item(self.sidebar.count() - 1)
+        self.current_editing_chat_item = new_item
+
+        # 新建对话时创建空记录
+        self.conversation_store[new_name] = []
+        print(f"📝新建对话：{new_name}")
+
     def delete_conversation(self, chat_name):
+        for i in range(self.sidebar.count() - 1, -1, -1):
+            item = self.sidebar.item(i)
+            widget = self.sidebar.itemWidget(item)
+            if widget and hasattr(widget, "chat_name") and widget.chat_name == chat_name:
+                self.sidebar.takeItem(i)
+                del item
+                print(f"✅已删除对话：{chat_name}")
+                break
+
+        # 1. 从存储字典彻底删掉这个对话的全部消息
+        if chat_name in self.conversation_store:
+            del self.conversation_store[chat_name]
+            print(f"🗑️ 已清除对话存储：{chat_name}")
+
+        # 只要删除任意对话，直接清空右侧聊天面板
+        self.chat_display.clear()
+        self.context_history = []
+        self.current_editing_chat_item = None
+
+    def switch_conversation(self, chat_name):
+        self.chat_display.clear()
+        self.context_history = []
+
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
             widget = self.sidebar.itemWidget(item)
             if hasattr(widget, "chat_name") and widget.chat_name == chat_name:
-                self.sidebar.takeItem(i)
+                self.current_editing_chat_item = item
                 break
 
-    # 切换选中对话（预留，后续加载聊天记录）
-    def switch_conversation(self, chat_name):
-        pass
+        print("切换对话，保存当前编辑item：", self.current_editing_chat_item)
+        print(f"【DEBUG】切换对话名称：{chat_name}")
+        print(f"【DEBUG】全部对话存储keys：{list(self.conversation_store.keys())}")
 
-    # 侧边栏展开收缩
+        # 加载并渲染历史消息
+        if chat_name in self.conversation_store:
+            msg_list = self.conversation_store[chat_name]
+            print(f"【DEBUG】读取到消息列表长度：{len(msg_list)}")
+            self.context_history = msg_list.copy()
+            for msg in msg_list:
+                is_user = msg["role"] == "user"
+                self.add_chat_bubble(msg["content"], is_user=is_user)
+        else:
+            print(f"【DEBUG】警告：{chat_name} 不在conversation_store中！")
+
     def toggle_sidebar(self):
         pass
 
-    # 主题切换
     def toggle_theme(self):
         pass
 
-    # 批量删除相关函数
     def show_batch_bar(self):
         self.batch_bar.setVisible(True)
 
@@ -223,13 +245,11 @@ class MainWindow(QMainWindow):
         if not selected_names:
             QMessageBox.information(self, "提示", "请勾选要删除的对话！")
             return
-        # 确认弹窗
         ret = QMessageBox.question(self, "确认删除", f"确定删除选中{len(selected_names)}条对话吗？",
                                    QMessageBox.Yes | QMessageBox.No)
         if ret == QMessageBox.Yes:
             for name in selected_names:
                 self.delete_conversation(name)
-        # 删除完成，自动退出批量模式
         self.sidebar.set_all_chat_item_batch(False)
         self.batch_mode = False
         self.hide_batch_bar()
@@ -241,70 +261,87 @@ class MainWindow(QMainWindow):
             self.hide_batch_bar()
 
     def cancel_batch(self):
-        # 取消按钮：关闭批量模式，和右上角☰关闭效果完全一致
         self.batch_mode = False
         self.sidebar.set_all_chat_item_batch(False)
         self.hide_batch_bar()
 
-    # ----------------输入栏回调函数----------------
     def on_send_text(self, text):
         print("发送文本：", text)
+
+        # ==========核心：程序刚打开，左侧为空，直接发送自动创建对话==========
+        if self.current_editing_chat_item is None:
+            new_title = text[:15]
+            chat_widget = self.sidebar.add_chat(new_title)
+            self.current_editing_chat_item = self.sidebar.item(self.sidebar.count() - 1)
+            self.context_history = []
+            self.conversation_store[new_title] = []
+        # ==============================================================
+
         self.add_chat_bubble(text, is_user=True)
-        # 用户消息存入上下文
         self.context_history.append({"role": "user", "content": text})
 
-        # 启动AI请求子线程
+        # 首条消息自动更新左侧标题，适配你的 btn_name
+        if len(self.context_history) == 1 and self.current_editing_chat_item is not None:
+            chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
+            if chat_item_widget and hasattr(chat_item_widget, "btn_name"):
+                old_title = chat_item_widget.chat_name
+                new_title = text[:15]
+                chat_item_widget.chat_name = new_title
+                chat_item_widget.btn_name.setText(new_title)
+                print(f"对话自动重命名：{old_title} → {new_title}")
+
+                if old_title in self.conversation_store:
+                    self.conversation_store[new_title] = self.conversation_store.pop(old_title)
+
+        # 保存当前对话历史
+        if self.current_editing_chat_item is not None:
+            chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
+            chat_name = chat_item_widget.chat_name
+            self.conversation_store[chat_name] = self.context_history.copy()
+
+        # 原来的 AI 请求逻辑保持不变
         self.ai_thread = AIRequestThread(self.context_history, text)
-        # 绑定AI完成信号
         self.ai_thread.finish_signal.connect(self.receive_ai_finish)
         self.ai_thread.start()
-
     def on_select_file(self, file_path):
         print("选择文件：", file_path)
-        # 文件上传预留
 
     def on_select_image(self, img_path):
         print("选择图片：", img_path)
-        # 图片上传预留
 
     def on_voice_input(self):
         print("语音输入点击")
-        # 语音预留
 
     def on_clear_chat(self):
         print("清空对话")
-        # 清空聊天展示区预留
+        self.chat_display.clear()
+        self.context_history = []
+
+        # 清空当前对话存储
+        if self.current_editing_chat_item is not None:
+            widget = self.sidebar.itemWidget(self.current_editing_chat_item)
+            chat_name = widget.chat_name
+            self.conversation_store[chat_name] = []
 
     def add_chat_bubble(self, text, is_user):
-        # 渲染消息气泡
         self.chat_display.add_bubble(text, is_user)
 
     def receive_ai_stream(self, chunk_text):
-        # 流式分片，逐字输出
         print("AI片段：", chunk_text)
 
     def receive_ai_finish(self, full_text):
-        # AI回答完毕，添加气泡并保存上下文
         self.add_chat_bubble(full_text, is_user=False)
         self.context_history.append({"role": "assistant", "content": full_text})
 
-    # 语音识别、文件上传、AI对话逻辑全部预留占位
-    def handle_ai_message(self):
-        pass
-
-    def upload_file(self):
-        pass
-
-    def speech_recognize(self):
-        pass
-
-    def closeEvent(self, event):
-        pass
+        # AI回复后更新存储
+        if self.current_editing_chat_item is not None:
+            widget = self.sidebar.itemWidget(self.current_editing_chat_item)
+            chat_name = widget.chat_name
+            self.conversation_store[chat_name] = self.context_history.copy()
 
 
 if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
+    app = QApplication([])
+    w = MainWindow()
+    w.show()
+    app.exec()

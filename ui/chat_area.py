@@ -1,10 +1,6 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QScrollArea, QLabel, QFrame,
-    QSizePolicy, QHBoxLayout, QPushButton
-)
+from PySide6.QtWidgets import (     QWidget, QVBoxLayout, QScrollArea, QLabel, QFrame,     QSizePolicy, QHBoxLayout, QPushButton )
 from PySide6.QtCore import Qt
 from ui.message_bubble import MessageBubble
-
 
 class ChatArea(QWidget):
     def __init__(self):
@@ -35,7 +31,6 @@ class ChatArea(QWidget):
             time_text = datetime.now().strftime("%H:%M")
 
         bubble = MessageBubble(text, is_user)
-
         # 角色标签
         role_label = QLabel()
         role_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -79,7 +74,6 @@ class ChatArea(QWidget):
 
             msg_layout.addLayout(header_layout)
             msg_layout.addWidget(bubble)
-
         else:
             # AI消息：左对齐，添加导出按钮
             header_layout.addWidget(role_label)
@@ -134,3 +128,12 @@ class ChatArea(QWidget):
         self.msg_container.adjustSize()
         bar = self.scroll.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+    # ===================== 新增 clear 方法（和add_bubble同级缩进！）=====================
+    def clear(self):
+        # 清空所有消息气泡
+        while self.msg_layout.count() > 0:
+            item = self.msg_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()

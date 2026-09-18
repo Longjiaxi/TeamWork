@@ -4,7 +4,7 @@ from PySide6.QtCore import QThread, Signal, Qt, QPropertyAnimation, QEasingCurve
 from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
 from ui.input_bar import InputBar
-from ui.chat_area import ChatArea
+
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
@@ -21,6 +21,7 @@ class AIRequestThread(QThread):
         self.user_prompt = prompt
 
     def run(self):
+
         import requests
         api_key = "sk-ws-H.PHLIIYE.AKpG.MEUCIHwN-veYrNHmZ2apoLGGWjHRVgxygPuZuASSkW82wXYdAiEA67G3MSICyubQ9wvKC-Zigzqdl2PHyysJDt1nfQkRLVg"
         url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -44,6 +45,10 @@ class AIRequestThread(QThread):
         except Exception as e:
             ai_full_text = f"请求异常：{str(e)}"
         self.finish_signal.emit(ai_full_text)
+
+        # AI接口逻辑预留位置
+        pass
+
 
 
 class MainWindow(QMainWindow):
@@ -85,10 +90,17 @@ QFrame{background:#2b2b2b;}
         self.setWindowTitle("AI Chat")
         self.setWindowIcon(QIcon("res/icon.png"))
         self.resize(1200, 800)
-
-        self.context_history = []
+        # 在__init__里面，类变量位置添加
         self.batch_mode = False
+
         self.ocr_engine = None
+
+
+        # OCR引擎延迟初始化
+        self.ocr_engine = None
+
+        # 侧边栏折叠标记
+
         self.sidebar_expanded = True
         self.sidebar_origin_width = 200
 
@@ -119,6 +131,11 @@ QFrame{background:#2b2b2b;}
         h_layout.addWidget(self.sidebar)
         self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
 
+
+
+        # 【删掉原来这里错误的一行：self.btn_cancel.clicked.connect(self.cancel_batch)】
+
+
         divider = QFrame()
         divider.setFixedWidth(1)
         divider.setStyleSheet("background:#cccccc;")
@@ -129,18 +146,36 @@ QFrame{background:#2b2b2b;}
         chat_layout.setContentsMargins(12, 12, 12, 12)
         chat_layout.setSpacing(10)
 
+
         self.chat_display = ChatArea()
         chat_layout.addWidget(self.chat_display, stretch=1)
+
+        # 聊天消息显示区域（占位，以后放消息列表）
+        chat_display = QWidget()
+        chat_display.setStyleSheet("background:#ffffff; border-radius:8px;")
+        chat_layout.addWidget(chat_display, stretch=1)
+
 
         self.input_bar = InputBar()
         self.input_bar.setObjectName("InputBar")
         chat_layout.addWidget(self.input_bar)
+
         h_layout.addWidget(chat_area, stretch=1)
 
+
         # 绑定你原来的信号，不改 sidebar 和 input_bar
+
+
+        # =====================信号绑定=====================
+        # 新建聊天按钮信号
+
         self.sidebar.new_chat_clicked.connect(self.new_chat)
         self.sidebar.chat_switch.connect(self.switch_conversation)
         self.sidebar.chat_delete.connect(self.delete_conversation)
+
+
+
+        # =========输入框组件信号绑定新增=========
 
         self.input_bar.sig_send_text.connect(self.on_send_text)
         self.input_bar.sig_file_selected.connect(self.on_select_file)
@@ -148,8 +183,22 @@ QFrame{background:#2b2b2b;}
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
+
+        # 批量相关信号预留
+        # 批量模式：主窗口绑定☰按钮点击
+        self.batch_mode = False
+        self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
+
+        # 加载主题相关
+        current_theme = "light"
+        if current_theme == "light":
+            self.title_bar.theme_btn.setText("☀ 浅色模式")
+        else:
+            self.title_bar.theme_btn.setText("🌙 夜间模式")
+
         # 默认加载浅色模式
         self.change_global_theme(False)
+
 
         current_theme = "light"
         if current_theme == "light":
@@ -157,28 +206,42 @@ QFrame{background:#2b2b2b;}
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
 
+
+        # 底部批量操作栏
+
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
 
+        # 新增【全选】按钮，放在最前面
+        self.btn_select_all = QPushButton("全选")
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
 
+
+
+        # 绑定点击事件，全选按钮调用sidebar的toggle_select_all方法
+        self.btn_select_all.clicked.connect(self.sidebar.toggle_select_all)
         self.btn_batch_del.clicked.connect(self.batch_delete)
         self.btn_cancel.clicked.connect(self.cancel_batch)
 
+        # 布局顺序：先全选，再确定删除，最后取消
         batch_layout.addStretch()
+        batch_layout.addWidget(self.btn_select_all)
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
 
     def new_chat(self):
+
         # 新建对话，移除旧的重命名逻辑，改名逻辑移到发送首条消息时
         self.chat_display.clear()
         self.context_history = []
         self.current_editing_chat_item = None
 
         # 收集现有对话编号，只读取有效的对话条目（排除顶部按钮、分割线）
+
+
         name_list = []
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
@@ -261,12 +324,15 @@ QFrame{background:#2b2b2b;}
         else:
             self.setStyleSheet(self.STYLE_LIGHT)
 
+
     def toggle_theme(self):
         pass
 
+
+    # 批量删除相关预留函数
+
     def show_batch_bar(self):
         self.batch_bar.setVisible(True)
-
     def hide_batch_bar(self):
         self.batch_bar.setVisible(False)
 
@@ -288,9 +354,14 @@ QFrame{background:#2b2b2b;}
         if ret == QMessageBox.Yes:
             for name in selected_names:
                 self.delete_conversation(name)
+
         self.sidebar.set_all_chat_item_batch(False)
         self.batch_mode = False
         self.hide_batch_bar()
+
+            # 仅新增这一行，删除完成自动退出多选，原有所有逻辑不动
+            self.sidebar.close_batch_mode()
+
 
     def on_sidebar_menu(self, batch_enable):
         if batch_enable:
@@ -306,6 +377,7 @@ QFrame{background:#2b2b2b;}
 
     def on_send_text(self, text):
         print("发送文本：", text)
+
 
         # ==========核心：程序刚打开，左侧为空，直接发送自动创建对话==========
         if self.current_editing_chat_item is None:
@@ -343,6 +415,9 @@ QFrame{background:#2b2b2b;}
         self.ai_thread.finish_signal.connect(self.receive_ai_finish)
         self.ai_thread.start()
 
+        # 后续在这里，把消息加到chat_display，调用AI线程
+
+
     def on_select_file(self, file_path):
         print("选择文件：", file_path)
 
@@ -363,6 +438,7 @@ QFrame{background:#2b2b2b;}
             chat_name = widget.chat_name
             self.conversation_store[chat_name] = []
 
+
     def add_chat_bubble(self, text, is_user):
         self.chat_display.add_bubble(text, is_user)
 
@@ -379,9 +455,24 @@ QFrame{background:#2b2b2b;}
             chat_name = widget.chat_name
             self.conversation_store[chat_name] = self.context_history.copy()
 
+    # 语音识别、文件上传、AI对话逻辑全部预留占位
+    def handle_ai_message(self):
+        pass
+
+    def upload_file(self):
+        pass
+
+    def speech_recognize(self):
+        pass
+
+    def closeEvent(self, event):
+        pass
+
+
 
 if __name__ == "__main__":
     import sys
+
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()

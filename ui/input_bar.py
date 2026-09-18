@@ -15,6 +15,7 @@ class InputBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("InputBar")
         self.init_ui()
 
     def init_ui(self):
@@ -23,11 +24,12 @@ class InputBar(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         input_container = QFrame()
+        input_container.setObjectName("input_container")
+        # 删除固定白色背景，边框交给全局主题控制
         input_container.setStyleSheet("""
-            QFrame {
-                border: 1px solid #ccc;
+            QFrame#input_container {
+                border: 1px solid;
                 border-radius: 8px;
-                background-color: #ffffff;
             }
         """)
 
@@ -56,76 +58,30 @@ class InputBar(QWidget):
         btn_upload = QPushButton("📄")
         btn_upload.setToolTip("上传文件")
         btn_upload.setCursor(QCursor(Qt.PointingHandCursor))
-        btn_upload.setStyleSheet("""
-        QPushButton {
-            border: none;
-            font-size: 18px;
-            padding:4px 8px;
-            border‑radius:6px;
-            background:#f0f0f0;
-        }
-        QPushButton:hover{background:#e0e0e0;}
-        """)
+        btn_upload.setObjectName("func_btn")
         btn_upload.clicked.connect(self.on_upload)
 
         btn_img = QPushButton("🖼️")
         btn_img.setToolTip("添加图片")
         btn_img.setCursor(QCursor(Qt.PointingHandCursor))
-        btn_img.setStyleSheet("""
-        QPushButton {
-            border: none;
-            font-size: 18px;
-            padding:4px 8px;
-            border‑radius:6px;
-            background:#f0f0f0;
-        }
-        QPushButton:hover{background:#e0e0e0;}
-        """)
+        btn_img.setObjectName("func_btn")
         btn_img.clicked.connect(self.on_image)
 
         btn_voice = QPushButton("🎤")
         btn_voice.setToolTip("语音输入")
         btn_voice.setCursor(QCursor(Qt.PointingHandCursor))
-        btn_voice.setStyleSheet("""
-        QPushButton {
-            border: none;
-            font-size: 18px;
-            padding:4px 8px;
-            border‑radius:6px;
-            background:#f0f0f0;
-        }
-        QPushButton:hover{background:#e0e0e0;}
-        """)
+        btn_voice.setObjectName("func_btn")
         btn_voice.clicked.connect(self.on_voice)
 
         btn_clear = QPushButton("🗑️")
         btn_clear.setToolTip("删除对话")
         btn_clear.setCursor(QCursor(Qt.PointingHandCursor))
-        btn_clear.setStyleSheet("""
-        QPushButton {
-            border: none;
-            font-size: 18px;
-            padding:4px 8px;
-            border‑radius:6px;
-            background:#f0f0f0;
-        }
-        QPushButton:hover{background:#e0e0e0;}
-        """)
+        btn_clear.setObjectName("func_btn")
         btn_clear.clicked.connect(self.on_clear)
 
         btn_send = QPushButton("⬆️ 发送")
         btn_send.setCursor(QCursor(Qt.PointingHandCursor))
-        btn_send.setStyleSheet("""
-        QPushButton {
-            border: none;
-            font-size: 14px;
-            padding:6px 16px;
-            border‑radius:6px;
-            background:#409eff;
-            color:white;
-        }
-        QPushButton:hover{background:#337ecc;}
-        """)
+        btn_send.setObjectName("send_btn")
         btn_send.clicked.connect(self.on_send)
 
         button_layout.addWidget(btn_upload)
@@ -167,4 +123,3 @@ class InputBar(QWidget):
 
     def on_clear(self):
         self.sig_clear_click.emit()
-

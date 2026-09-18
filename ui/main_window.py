@@ -37,6 +37,39 @@ class AIRequestThread(QThread):
 
 
 class MainWindow(QMainWindow):
+    # ====================== 主题QSS样式定义 ======================
+    STYLE_LIGHT = """
+QMainWindow{background-color:#ffffff;}
+QWidget#ChatArea, QWidget#msg_container{background:#ffffff;}
+QWidget{background:#ffffff;color:#222222;}
+QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;}
+QPushButton:hover{background:#e2e2e2;}
+QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;}
+QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;}
+QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;}
+QLabel#time_label{color:#999999;}
+QLabel{color:#222222;}
+QFrame{background:#f8f8f8;}
+#TitleBar{background:#f3f3f3;}
+#InputBar{background-color:#ffffff;}
+"""
+
+    STYLE_DARK = """
+QMainWindow{background-color:#1e1e1e;}
+QWidget#ChatArea, QWidget#msg_container{background:#252525;}
+QWidget{background:#1e1e1e;color:#eeeeee;}
+QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;}
+QPushButton:hover{background:#444444;}
+QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;}
+QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;}
+QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;}
+QLabel#time_label{color:#aaaaaa;}
+QLabel{color:#eeeeee;}
+QFrame{background:#2b2b2b;}
+#TitleBar{background:#2d2d2d;}
+#InputBar{background-color:#252525;}
+"""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Chat")
@@ -51,6 +84,8 @@ class MainWindow(QMainWindow):
         # 侧边栏折叠标记
         self.sidebar_expanded = True
         self.sidebar_origin_width = 200
+        # 主题状态标记
+        self.is_dark_mode = False
 
         # ----------------------中心部件和整体布局----------------------
         central_widget = QWidget()
@@ -61,6 +96,8 @@ class MainWindow(QMainWindow):
 
         # 顶部标题栏
         self.title_bar = TitleBar()
+        # ✅【重点】绑定标题栏的主题切换信号
+        self.title_bar.switch_theme_signal.connect(self.change_global_theme)
         main_layout.addWidget(self.title_bar)
 
         # 水平布局：侧边栏 + 聊天主区域
@@ -95,6 +132,7 @@ class MainWindow(QMainWindow):
 
         # --------实例化我们的底部输入栏组件--------
         self.input_bar = InputBar()
+        self.input_bar.setObjectName("InputBar")
         chat_layout.addWidget(self.input_bar)
 
         h_layout.addWidget(chat_area, stretch=1)
@@ -115,6 +153,7 @@ class MainWindow(QMainWindow):
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
+
         # 批量相关信号预留
         # 批量模式：主窗口绑定☰按钮点击
         self.batch_mode = False
@@ -126,6 +165,10 @@ class MainWindow(QMainWindow):
             self.title_bar.theme_btn.setText("☀ 浅色模式")
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
+
+        # 默认加载浅色模式
+        self.change_global_theme(False)
+
 
         # 底部批量操作栏
         self.batch_bar = QWidget()
@@ -186,9 +229,13 @@ class MainWindow(QMainWindow):
     def toggle_sidebar(self):
         pass
 
-    # 主题切换
-    def toggle_theme(self):
-        pass
+    # ====================== 全局主题切换函数 ======================
+    def change_global_theme(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        if is_dark:
+            self.setStyleSheet(self.STYLE_DARK)
+        else:
+            self.setStyleSheet(self.STYLE_LIGHT)
 
     # 批量删除相关预留函数
     def show_batch_bar(self):
@@ -226,7 +273,7 @@ class MainWindow(QMainWindow):
             self.hide_batch_bar()
 
     def cancel_batch(self):
-        # 取消按钮：关闭批量模式，和右上角☰关闭效果完全一致
+        # 取消按钮：关闭批量模式
         self.batch_mode = False
         self.sidebar.set_all_chat_item_batch(False)
         self.hide_batch_bar()

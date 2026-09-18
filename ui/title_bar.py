@@ -10,10 +10,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal
 
 
-
 class TitleBar(QWidget):
-    # 切换主题信号
-    switch_theme_signal = Signal()
+    # 切换主题信号：携带bool参数
+    switch_theme_signal = Signal(bool)
     agent_tab_clicked = Signal()
     add_tab_clicked = Signal()
     home_tab_clicked = Signal()  # 首页点击信号
@@ -24,6 +23,7 @@ class TitleBar(QWidget):
         super().__init__()
         self.setObjectName("TitleBar")
         self.setFixedHeight(50)
+        self.is_dark = False  # 默认浅色
 
         root_layout = QHBoxLayout(self)
         root_layout.setContentsMargins(12, 0, 12, 0)
@@ -62,7 +62,8 @@ class TitleBar(QWidget):
         self.setting_btn.setObjectName("setting_btn")
         self.close_btn = QPushButton("✖")
         self.close_btn.setObjectName("close_btn")
-        self.theme_btn.clicked.connect(self.switch_theme_signal.emit)
+        # 绑定点击事件
+        self.theme_btn.clicked.connect(self.on_theme_clicked)
 
         # 布局顺序：左侧标签 → 空白弹性区 → 麦克风下拉 → 主题/设置/关闭
         root_layout.addWidget(tab_widget)
@@ -73,5 +74,10 @@ class TitleBar(QWidget):
         root_layout.addWidget(self.setting_btn)
         root_layout.addWidget(self.close_btn)
 
-        self.is_dark = False
-
+    def on_theme_clicked(self):
+        self.is_dark = not self.is_dark
+        if self.is_dark:
+            self.theme_btn.setText("🌙 深色模式")
+        else:
+            self.theme_btn.setText("☀ 浅色模式")
+        self.switch_theme_signal.emit(self.is_dark)

@@ -9,6 +9,7 @@ from ui.message_bubble import MessageBubble
 class ChatArea(QWidget):
     def __init__(self):
         super().__init__()
+        self.setObjectName("ChatArea")  # 用于全局QSS选择器
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -16,9 +17,11 @@ class ChatArea(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("border:none; background-color:#ffffff;")
+        # 移除固定白色背景，交给全局主题控制
+        self.scroll.setStyleSheet("border:none;")
 
         self.msg_container = QWidget()
+        self.msg_container.setObjectName("msg_container")
         self.msg_layout = QVBoxLayout(self.msg_container)
         self.msg_layout.setSpacing(14)
         self.msg_layout.setAlignment(Qt.AlignTop)
@@ -36,29 +39,15 @@ class ChatArea(QWidget):
 
         bubble = MessageBubble(text, is_user)
 
-        # 角色标签
+        # 角色标签，去掉固定背景色，适配主题
         role_label = QLabel()
         role_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        role_label.setStyleSheet("""
-            QLabel {
-                color: #888888;
-                font-size: 12px;
-                background-color: #f5f5f5;
-                border: 1px solid #e5e5e5;
-                border-radius: 6px;
-                padding: 2px 8px;
-            }
-        """)
+        role_label.setObjectName("role_label")
         role_label.setText("你" if is_user else "AI")
 
         # 时间标签
         time_label = QLabel(time_text)
-        time_label.setStyleSheet("""
-            QLabel {
-                color: #999999;
-                font-size: 12px;
-            }
-        """)
+        time_label.setObjectName("time_label")
 
         # 头部：角色 + 时间
         header_layout = QHBoxLayout()
@@ -72,7 +61,7 @@ class ChatArea(QWidget):
         msg_layout.setSpacing(6)
 
         if is_user:
-            # 用户消息：右对齐，【不添加导出按钮】
+            # 用户消息：右对齐
             header_layout.addStretch(1)
             header_layout.addWidget(time_label)
             header_layout.addWidget(role_label)
@@ -90,20 +79,7 @@ class ChatArea(QWidget):
             export_word_btn = QPushButton("导出 Word")
             export_excel_btn = QPushButton("导出 Excel")
             for btn in [export_word_btn, export_excel_btn]:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #ffffff;
-                        border: 1px solid #d9d9d9;
-                        border-radius: 6px;
-                        padding: 4px 10px;
-                        font-size: 12px;
-                        color: #333333;
-                    }
-                    QPushButton:hover {
-                        background-color: #f0f7ff;
-                        border-color: #409eff;
-                    }
-                """)
+                btn.setObjectName("export_btn")
             button_layout = QHBoxLayout()
             button_layout.setContentsMargins(0, 0, 0, 0)
             button_layout.setSpacing(8)
@@ -121,11 +97,11 @@ class ChatArea(QWidget):
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
 
         if is_user:
-            # 用户消息：靠右，固定最大宽度
+            # 用户消息：靠右
             wrapper_layout.addStretch(1)
             wrapper_layout.addWidget(msg_widget)
         else:
-            # AI消息：靠左，给拉伸权重，让气泡横向拉长
+            # AI消息：靠左
             wrapper_layout.addWidget(msg_widget, stretch=1)
 
         self.msg_layout.addWidget(wrapper)

@@ -108,6 +108,13 @@ class MainWindow(QMainWindow):
         # 删除单条对话
         self.sidebar.chat_delete.connect(self.delete_conversation)
 
+        # =========输入框组件信号绑定新增=========
+        self.input_bar.sig_send_text.connect(self.on_send_text)
+        self.input_bar.sig_file_selected.connect(self.on_select_file)
+        self.input_bar.sig_img_selected.connect(self.on_select_image)
+        self.input_bar.sig_voice_click.connect(self.on_voice_input)
+        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
+
         # 批量相关信号预留
         # 批量模式：主窗口绑定☰按钮点击
         self.batch_mode = False
@@ -120,31 +127,24 @@ class MainWindow(QMainWindow):
         else:
             self.title_bar.theme_btn.setText("🌙 夜间模式")
 
-<<<<<<< HEAD
-        # 底部批量操作栏【先创建按钮，再绑定！】
-=======
-        # =========输入框组件信号绑定新增=========
-        self.input_bar.sig_send_text.connect(self.on_send_text)
-        self.input_bar.sig_file_selected.connect(self.on_select_file)
-        self.input_bar.sig_img_selected.connect(self.on_select_image)
-        self.input_bar.sig_voice_click.connect(self.on_voice_input)
-        self.input_bar.sig_clear_click.connect(self.on_clear_chat)
-
-        # 底部批量操作栏（暂时隐藏，保留代码）
->>>>>>> 82d538eca9b7a3d98a894775b1eb96a850a05292
+        # 底部批量操作栏
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
 
+        # 新增【全选】按钮，放在最前面
+        self.btn_select_all = QPushButton("全选")
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
 
-        # ==========事件绑定【现在按钮已经创建，在这里绑定】==========
+        # 绑定点击事件，全选按钮调用sidebar的toggle_select_all方法
+        self.btn_select_all.clicked.connect(self.sidebar.toggle_select_all)
         self.btn_batch_del.clicked.connect(self.batch_delete)
-        # 取消按钮：关闭批量模式，和右上角三条杠关闭效果一致
         self.btn_cancel.clicked.connect(self.cancel_batch)
 
+        # 布局顺序：先全选，再确定删除，最后取消
         batch_layout.addStretch()
+        batch_layout.addWidget(self.btn_select_all)
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
@@ -205,7 +205,6 @@ class MainWindow(QMainWindow):
             self.hide_batch_bar()
         self.sidebar.set_all_chat_item_batch(self.batch_mode)
 
-
     def batch_delete(self):
         selected_names = self.sidebar.get_selected_chat_names()
         if not selected_names:
@@ -217,10 +216,8 @@ class MainWindow(QMainWindow):
         if ret == QMessageBox.Yes:
             for name in selected_names:
                 self.delete_conversation(name)
-        # 删除完成，自动退出批量模式
-        self.sidebar.set_all_chat_item_batch(False)
-        self.batch_mode = False
-        self.hide_batch_bar()
+            # 仅新增这一行，删除完成自动退出多选，原有所有逻辑不动
+            self.sidebar.close_batch_mode()
 
     def on_sidebar_menu(self, batch_enable):
         if batch_enable:
@@ -233,29 +230,6 @@ class MainWindow(QMainWindow):
         self.batch_mode = False
         self.sidebar.set_all_chat_item_batch(False)
         self.hide_batch_bar()
-
-    # ==========新增程序入口==========
-
-
-if __name__ == "__main__":
-    import sys
-
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
-
-    # =========【删除下面这段重复的on_toggle_batch，保留上面那一个即可】=========
-    # def on_toggle_batch(self):
-    #     self.batch_mode = not self.batch_mode
-    #     print(f"【MAIN DEBUG】主窗口批量模式 {self.batch_mode}")
-    #     # 控制底部栏显示隐藏
-    #     if self.batch_mode:
-    #         self.show_batch_bar()
-    #     else:
-    #         self.hide_batch_bar()
-    #     # 通知sidebar去刷新所有对话的复选框
-    #     self.sidebar.set_all_chat_item_batch(self.batch_mode)
 
     # ----------------输入栏回调函数----------------
     def on_send_text(self, text):
@@ -290,3 +264,12 @@ if __name__ == "__main__":
 
     def closeEvent(self, event):
         pass
+
+
+if __name__ == "__main__":
+    import sys
+
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())

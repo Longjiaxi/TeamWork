@@ -1,10 +1,20 @@
-from PySide6.QtWidgets import (     QMainWindow,     QWidget,     QHBoxLayout,     QVBoxLayout,     QApplication,     QPushButton,     QFrame,     QLabel,     QDialog,     QComboBox )
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QApplication,
+    QPushButton,
+    QFrame,
+    QLabel,
+    QDialog,
+    QComboBox
+)
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import QThread, Signal, Qt, QPropertyAnimation, QEasingCurve, QTimer
 from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
 from ui.input_bar import InputBar
-
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
@@ -22,7 +32,6 @@ class AIRequestThread(QThread):
         self.user_prompt = prompt
 
     def run(self):
-
         import requests
         api_key = "sk-ws-H.PHLIIYE.AKpG.MEUCIHwN-veYrNHmZ2apoLGGWjHRVgxygPuZuASSkW82wXYdAiEA67G3MSICyubQ9wvKC-Zigzqdl2PHyysJDt1nfQkRLVg"
         url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -47,69 +56,52 @@ class AIRequestThread(QThread):
             ai_full_text = f"请求异常：{str(e)}"
         self.finish_signal.emit(ai_full_text)
 
-        # AI接口逻辑预留位置
-        pass
-
-
 
 class MainWindow(QMainWindow):
     # ====================== 主题QSS样式定义 ======================
     STYLE_LIGHT = """
-QMainWindow{background-color:#ffffff;}
-QWidget#ChatArea, QWidget#msg_container{background:#ffffff;}
-QWidget{background:#ffffff;color:#222222;}
-QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;}
-QPushButton:hover{background:#e2e2e2;}
-QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;}
-QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;}
-QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;}
-QLabel#time_label{color:#999999;}
-QLabel{color:#222222;}
-QFrame{background:#f8f8f8;}
-#TitleBar{background:#f3f3f3;}
-#InputBar{background-color:#ffffff;}
-"""
+    QMainWindow{background-color:#ffffff;}
+    QWidget#ChatArea, QWidget#msg_container{background:#ffffff;}
+    QWidget{background:#ffffff;color:#222222;}
+    QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;}
+    QPushButton:hover{background:#e2e2e2;}
+    QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;}
+    QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;}
+    QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;}
+    QLabel#time_label{color:#999999;}
+    QLabel{color:#222222;}
+    QFrame{background:#f8f8f8;}
+    #TitleBar{background:#f3f3f3;}
+    #InputBar{background-color:#ffffff;}
+    """
 
     STYLE_DARK = """
-QMainWindow{background-color:#1e1e1e;}
-QWidget#ChatArea, QWidget#msg_container{background:#252525;}
-QWidget{background:#1e1e1e;color:#eeeeee;}
-QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;}
-QPushButton:hover{background:#444444;}
-QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;}
-QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;}
-QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;}
-QLabel#time_label{color:#aaaaaa;}
-QLabel{color:#eeeeee;}
-QFrame{background:#2b2b2b;}
-#TitleBar{background:#2d2d2d;}
-#InputBar{background-color:#252525;}
-"""
+    QMainWindow{background-color:#1e1e1e;}
+    QWidget#ChatArea, QWidget#msg_container{background:#252525;}
+    QWidget{background:#1e1e1e;color:#eeeeee;}
+    QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;}
+    QPushButton:hover{background:#444444;}
+    QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;}
+    QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;}
+    QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;}
+    QLabel#time_label{color:#aaaaaa;}
+    QLabel{color:#eeeeee;}
+    QFrame{background:#2b2b2b;}
+    #TitleBar{background:#2d2d2d;}
+    #InputBar{background-color:#252525;}
+    """
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Chat")
         self.setWindowIcon(QIcon("res/icon.png"))
         self.resize(1200, 800)
-        # 在__init__里面，类变量位置添加
         self.batch_mode = False
-
         self.ocr_engine = None
-
-
-        # OCR引擎延迟初始化
-        self.ocr_engine = None
-
-        # 侧边栏折叠标记
-
         self.sidebar_expanded = True
         self.sidebar_origin_width = 200
-
-        # 主题状态标记
         self.is_dark_mode = False
         self.current_editing_chat_item = None
-
-        # 对话存储：每个对话独立保存消息列表
         self.conversation_store = {}
 
         central_widget = QWidget()
@@ -119,7 +111,6 @@ QFrame{background:#2b2b2b;}
         main_layout.setSpacing(0)
 
         self.title_bar = TitleBar()
-        # ✅【重点】绑定标题栏的主题切换信号
         self.title_bar.switch_theme_signal.connect(self.change_global_theme)
         main_layout.addWidget(self.title_bar)
 
@@ -132,11 +123,6 @@ QFrame{background:#2b2b2b;}
         h_layout.addWidget(self.sidebar)
         self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
 
-
-
-        # 【删掉原来这里错误的一行：self.btn_cancel.clicked.connect(self.cancel_batch)】
-
-
         divider = QFrame()
         divider.setFixedWidth(1)
         divider.setStyleSheet("background:#cccccc;")
@@ -147,15 +133,10 @@ QFrame{background:#2b2b2b;}
         chat_layout.setContentsMargins(12, 12, 12, 12)
         chat_layout.setSpacing(10)
 
-
         self.chat_display = ChatArea()
         chat_layout.addWidget(self.chat_display, stretch=1)
 
-        # 聊天消息显示区域（占位，以后放消息列表）
-        chat_display = QWidget()
-        chat_display.setStyleSheet("background:#ffffff; border-radius:8px;")
-        chat_layout.addWidget(chat_display, stretch=1)
-
+        # ✅ 已删除原来遮挡界面的多余空白QWidget！
 
         self.input_bar = InputBar()
         self.input_bar.setObjectName("InputBar")
@@ -163,20 +144,10 @@ QFrame{background:#2b2b2b;}
 
         h_layout.addWidget(chat_area, stretch=1)
 
-
-        # 绑定你原来的信号，不改 sidebar 和 input_bar
-
-
         # =====================信号绑定=====================
-        # 新建聊天按钮信号
-
         self.sidebar.new_chat_clicked.connect(self.new_chat)
         self.sidebar.chat_switch.connect(self.switch_conversation)
         self.sidebar.chat_delete.connect(self.delete_conversation)
-
-
-
-        # =========输入框组件信号绑定新增=========
 
         self.input_bar.sig_send_text.connect(self.on_send_text)
         self.input_bar.sig_file_selected.connect(self.on_select_file)
@@ -184,49 +155,25 @@ QFrame{background:#2b2b2b;}
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
 
-
-        # 批量相关信号预留
-        # 批量模式：主窗口绑定☰按钮点击
         self.batch_mode = False
         self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
-
-        # 加载主题相关
-        current_theme = "light"
-        if current_theme == "light":
-            self.title_bar.theme_btn.setText("☀ 浅色模式")
-        else:
-            self.title_bar.theme_btn.setText("🌙 夜间模式")
 
         # 默认加载浅色模式
         self.change_global_theme(False)
 
-
-        current_theme = "light"
-        if current_theme == "light":
-            self.title_bar.theme_btn.setText("☀ 浅色模式")
-        else:
-            self.title_bar.theme_btn.setText("🌙 夜间模式")
-
-
         # 底部批量操作栏
-
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
 
-        # 新增【全选】按钮，放在最前面
         self.btn_select_all = QPushButton("全选")
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
 
-
-
-        # 绑定点击事件，全选按钮调用sidebar的toggle_select_all方法
         self.btn_select_all.clicked.connect(self.sidebar.toggle_select_all)
         self.btn_batch_del.clicked.connect(self.batch_delete)
         self.btn_cancel.clicked.connect(self.cancel_batch)
 
-        # 布局顺序：先全选，再确定删除，最后取消
         batch_layout.addStretch()
         batch_layout.addWidget(self.btn_select_all)
         batch_layout.addWidget(self.btn_batch_del)
@@ -234,27 +181,20 @@ QFrame{background:#2b2b2b;}
         main_layout.addWidget(self.batch_bar)
 
     def new_chat(self):
-
-        # 新建对话，移除旧的重命名逻辑，改名逻辑移到发送首条消息时
         self.chat_display.clear()
         self.context_history = []
         self.current_editing_chat_item = None
-
-        # 收集现有对话编号，只读取有效的对话条目（排除顶部按钮、分割线）
-
 
         name_list = []
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
             widget = self.sidebar.itemWidget(item)
-            # 只有带chat_name的才是对话条目，跳过顶部+新建按钮和分割线
             if widget and hasattr(widget, "chat_name"):
                 try:
                     num = int(widget.chat_name.replace("对话", ""))
                     name_list.append(num)
                 except:
                     pass
-
         min_id = 1
         while min_id in name_list:
             min_id += 1
@@ -263,8 +203,6 @@ QFrame{background:#2b2b2b;}
 
         new_item = self.sidebar.item(self.sidebar.count() - 1)
         self.current_editing_chat_item = new_item
-
-        # 新建对话时创建空记录
         self.conversation_store[new_name] = []
         print(f"📝新建对话：{new_name}")
 
@@ -278,12 +216,10 @@ QFrame{background:#2b2b2b;}
                 print(f"✅已删除对话：{chat_name}")
                 break
 
-        # 1. 从存储字典彻底删掉这个对话的全部消息
         if chat_name in self.conversation_store:
             del self.conversation_store[chat_name]
             print(f"🗑️ 已清除对话存储：{chat_name}")
 
-        # 只要删除任意对话，直接清空右侧聊天面板
         self.chat_display.clear()
         self.context_history = []
         self.current_editing_chat_item = None
@@ -303,7 +239,6 @@ QFrame{background:#2b2b2b;}
         print(f"【DEBUG】切换对话名称：{chat_name}")
         print(f"【DEBUG】全部对话存储keys：{list(self.conversation_store.keys())}")
 
-        # 加载并渲染历史消息
         if chat_name in self.conversation_store:
             msg_list = self.conversation_store[chat_name]
             print(f"【DEBUG】读取到消息列表长度：{len(msg_list)}")
@@ -322,18 +257,17 @@ QFrame{background:#2b2b2b;}
         self.is_dark_mode = is_dark
         if is_dark:
             self.setStyleSheet(self.STYLE_DARK)
+            self.title_bar.theme_btn.setText("🌙 深色模式")
         else:
             self.setStyleSheet(self.STYLE_LIGHT)
-
+            self.title_bar.theme_btn.setText("☀ 浅色模式")
 
     def toggle_theme(self):
         pass
 
-
-    # 批量删除相关预留函数
-
     def show_batch_bar(self):
         self.batch_bar.setVisible(True)
+
     def hide_batch_bar(self):
         self.batch_bar.setVisible(False)
 
@@ -359,10 +293,7 @@ QFrame{background:#2b2b2b;}
         self.sidebar.set_all_chat_item_batch(False)
         self.batch_mode = False
         self.hide_batch_bar()
-
-
         self.sidebar.close_batch_mode()
-
 
     def on_sidebar_menu(self, batch_enable):
         if batch_enable:
@@ -371,7 +302,6 @@ QFrame{background:#2b2b2b;}
             self.hide_batch_bar()
 
     def cancel_batch(self):
-        # 取消按钮：关闭批量模式
         self.batch_mode = False
         self.sidebar.set_all_chat_item_batch(False)
         self.hide_batch_bar()
@@ -379,20 +309,16 @@ QFrame{background:#2b2b2b;}
     def on_send_text(self, text):
         print("发送文本：", text)
 
-
-        # ==========核心：程序刚打开，左侧为空，直接发送自动创建对话==========
         if self.current_editing_chat_item is None:
             new_title = text[:15]
             chat_widget = self.sidebar.add_chat(new_title)
             self.current_editing_chat_item = self.sidebar.item(self.sidebar.count() - 1)
             self.context_history = []
             self.conversation_store[new_title] = []
-        # ==============================================================
 
         self.add_chat_bubble(text, is_user=True)
         self.context_history.append({"role": "user", "content": text})
 
-        # 首条消息自动更新左侧标题，适配你的 btn_name
         if len(self.context_history) == 1 and self.current_editing_chat_item is not None:
             chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             if chat_item_widget and hasattr(chat_item_widget, "btn_name"):
@@ -405,19 +331,14 @@ QFrame{background:#2b2b2b;}
                 if old_title in self.conversation_store:
                     self.conversation_store[new_title] = self.conversation_store.pop(old_title)
 
-        # 保存当前对话历史
         if self.current_editing_chat_item is not None:
             chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = chat_item_widget.chat_name
             self.conversation_store[chat_name] = self.context_history.copy()
 
-        # 原来的 AI 请求逻辑保持不变
         self.ai_thread = AIRequestThread(self.context_history, text)
         self.ai_thread.finish_signal.connect(self.receive_ai_finish)
         self.ai_thread.start()
-
-        # 后续在这里，把消息加到chat_display，调用AI线程
-
 
     def on_select_file(self, file_path):
         print("选择文件：", file_path)
@@ -433,12 +354,10 @@ QFrame{background:#2b2b2b;}
         self.chat_display.clear()
         self.context_history = []
 
-        # 清空当前对话存储
         if self.current_editing_chat_item is not None:
             widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = widget.chat_name
             self.conversation_store[chat_name] = []
-
 
     def add_chat_bubble(self, text, is_user):
         self.chat_display.add_bubble(text, is_user)
@@ -450,13 +369,11 @@ QFrame{background:#2b2b2b;}
         self.add_chat_bubble(full_text, is_user=False)
         self.context_history.append({"role": "assistant", "content": full_text})
 
-        # AI回复后更新存储
         if self.current_editing_chat_item is not None:
             widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = widget.chat_name
             self.conversation_store[chat_name] = self.context_history.copy()
 
-    # 语音识别、文件上传、AI对话逻辑全部预留占位
     def handle_ai_message(self):
         pass
 
@@ -468,7 +385,6 @@ QFrame{background:#2b2b2b;}
 
     def closeEvent(self, event):
         pass
-
 
 
 if __name__ == "__main__":

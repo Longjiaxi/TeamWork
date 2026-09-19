@@ -16,6 +16,8 @@ from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
 from ui.input_bar import InputBar
 from ui.chat_area import ChatArea
+# =========新增导入AI平台弹窗=========
+from ui.ai_platform_popup import AiPlatformPopup
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
@@ -61,37 +63,9 @@ class AIRequestThread(QThread):
 
 class MainWindow(QMainWindow):
     # ====================== 主题QSS样式定义 ======================
-    STYLE_LIGHT = """
-QMainWindow{background-color:#ffffff;}
-QWidget#ChatArea, QWidget#msg_container{background:#ffffff;}
-QWidget{background:#ffffff;color:#222222;}
-QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;}
-QPushButton:hover{background:#e2e2e2;}
-QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;}
-QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;}
-QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;}
-QLabel#time_label{color:#999999;}
-QLabel{color:#222222;}
-QFrame{background:#f8f8f8;}
-#TitleBar{background:#f3f3f3;}
-#InputBar{background-color:#ffffff;}
-"""
+    STYLE_LIGHT = """ QMainWindow{background-color:#ffffff;} QWidget#ChatArea, QWidget#msg_container{background:#ffffff;} QWidget{background:#ffffff;color:#222222;} QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;} QPushButton:hover{background:#e2e2e2;} QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;} QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;} QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;} QLabel#time_label{color:#999999;} QLabel{color:#222222;} QFrame{background:#f8f8f8;} #TitleBar{background:#f3f3f3;} #InputBar{background-color:#ffffff;} """
 
-    STYLE_DARK = """
-QMainWindow{background-color:#1e1e1e;}
-QWidget#ChatArea, QWidget#msg_container{background:#252525;}
-QWidget{background:#1e1e1e;color:#eeeeee;}
-QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;}
-QPushButton:hover{background:#444444;}
-QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;}
-QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;}
-QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;}
-QLabel#time_label{color:#aaaaaa;}
-QLabel{color:#eeeeee;}
-QFrame{background:#2b2b2b;}
-#TitleBar{background:#2d2d2d;}
-#InputBar{background-color:#252525;}
-"""
+    STYLE_DARK = """ QMainWindow{background-color:#1e1e1e;} QWidget#ChatArea, QWidget#msg_container{background:#252525;} QWidget{background:#1e1e1e;color:#eeeeee;} QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;} QPushButton:hover{background:#444444;} QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;} QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;} QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;} QLabel#time_label{color:#aaaaaa;} QLabel{color:#eeeeee;} QFrame{background:#2b2b2b;} #TitleBar{background:#2d2d2d;} #InputBar{background-color:#252525;} """
 
     def __init__(self):
         super().__init__()
@@ -120,6 +94,8 @@ QFrame{background:#2b2b2b;}
         self.title_bar = TitleBar()
         # ✅【重点】绑定标题栏的主题切换信号
         self.title_bar.switch_theme_signal.connect(self.change_global_theme)
+        # =========绑定加号按钮信号（使用原有add_tab_clicked，修复报错）=========
+        self.title_bar.add_tab_clicked.connect(self.show_ai_popup)
         main_layout.addWidget(self.title_bar)
 
         # 水平布局：侧边栏 + 聊天主区域
@@ -132,8 +108,7 @@ QFrame{background:#2b2b2b;}
         self.sidebar = Sidebar()
         h_layout.addWidget(self.sidebar)
         self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
-        self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
-
+        #self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
 
         # 右侧分割线
         divider = QFrame()
@@ -156,6 +131,9 @@ QFrame{background:#2b2b2b;}
         self.input_bar.setObjectName("InputBar")
         chat_layout.addWidget(self.input_bar)
         h_layout.addWidget(chat_area, stretch=1)
+
+        # =========实例AI弹窗，父容器是chat_area，只覆盖右侧=========
+        self.ai_popup = AiPlatformPopup(chat_area)
 
         # =====================信号绑定=====================
         # 新建聊天按钮信号
@@ -192,6 +170,17 @@ QFrame{background:#2b2b2b;}
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
+
+    # =========【新增函数：显示AI平台弹窗】=========
+    def show_ai_popup(self):
+        self.ai_popup.update_size(self.ai_popup.parent().rect())
+        self.ai_popup.show()
+
+    # =========【新增：窗口缩放事件，弹窗跟随窗口大小】=========
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "ai_popup") and self.ai_popup.isVisible():
+            self.ai_popup.update_size(self.ai_popup.parent().rect())
 
     # =========新建对话：自动寻找最小空缺编号=========
     def new_chat(self):
@@ -237,8 +226,22 @@ QFrame{background:#2b2b2b;}
         self.is_dark_mode = is_dark
         if is_dark:
             self.setStyleSheet(self.STYLE_DARK)
+            # 弹窗深色样式
+            self.ai_popup.setStyleSheet("""
+                #AiPlatformPopup{background-color:#252525;}
+                QPushButton{background:#333;border:1px solid #555;color:#eee;}
+                QPushButton:hover{background:#404b58;border-color:#409eff;}
+                QLabel{color:#eee;}
+            """)
         else:
             self.setStyleSheet(self.STYLE_LIGHT)
+            # 弹窗浅色样式
+            self.ai_popup.setStyleSheet("""
+                #AiPlatformPopup{background-color:#ffffff;}
+                QPushButton{background:#f8f8f8;border:1px solid #cccccc;color:#222;}
+                QPushButton:hover{background:#e8f2ff;border-color:#409eff;}
+                QLabel{color:#222;}
+            """)
 
     # 批量删除相关函数
     def show_batch_bar(self):

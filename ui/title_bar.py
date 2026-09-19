@@ -14,7 +14,7 @@ class TitleBar(QWidget):
     # 切换主题信号：携带bool参数
     switch_theme_signal = Signal(bool)
     agent_tab_clicked = Signal()
-    add_tab_clicked = Signal()
+    add_tab_clicked = Signal()   # 加号按钮【+】的信号，就是这个！
     home_tab_clicked = Signal()  # 首页点击信号
     # 新增：麦克风切换信号，传给主窗口同步全局录音实例
     mic_device_switch_signal = Signal(int)

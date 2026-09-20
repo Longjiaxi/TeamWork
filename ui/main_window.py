@@ -188,12 +188,11 @@ class MainWindow(QMainWindow):
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
 
-<<<<<<< HEAD
     # ==========新增：打开Git同步弹窗函数==========
     def open_git_sync_dialog(self):
         win = GitBackupWindow(self)
         win.exec()
-=======
+
     # 新增：逐字渲染回调
     def type_one_char(self):
         if self.type_index < len(self.type_text_buffer):
@@ -201,7 +200,6 @@ class MainWindow(QMainWindow):
             self.type_index += 1
         else:
             self.type_timer.stop()
->>>>>>> d8a9231cdbb66e99bb215f68778e90620f7f602e
 
     def new_chat(self):
         self.chat_display.clear()

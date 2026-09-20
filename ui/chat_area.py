@@ -1,117 +1,132 @@
-from PySide6.QtWidgets import (     QWidget, QVBoxLayout, QScrollArea, QLabel, QFrame,
-    QSizePolicy, QHBoxLayout, QPushButton )
-from PySide6.QtCore import Qt
-from ui.message_bubble import MessageBubble
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                               QScrollArea, QFrame, QSizePolicy)
+from PySide6.QtCore import Qt, QTimer
+
+
+class ChatBubble(QFrame):
+    def __init__(self, is_user: bool):
+        super().__init__()
+        self.is_user = is_user
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8,6,8,6)
+        layout.setSpacing(4)
+
+        self.label = QLabel()
+        self.label.setWordWrap(True)
+        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        layout.addWidget(self.label)
+
+        if is_user:
+            # 用户气泡 靠右，蓝色
+            self.setStyleSheet("""
+                QFrame{background:#409EFF;border-radius:12px;}
+                QLabel{color:#ffffff;}
+            """)
+        else:
+            # AI气泡靠左，灰色
+            self.setStyleSheet("""
+                QFrame{background:#f0f0f0;border-radius:12px;}
+                QLabel{color:#222222;}
+            """)
 
 
 class ChatArea(QWidget):
     def __init__(self):
         super().__init__()
-        self.setObjectName("ChatArea")  # 用于全局QSS选择器
-
+        self.setObjectName("ChatArea")
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(0,0,0,0)
+        main_layout.setSpacing(12)
 
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # 移除固定白色背景，交给全局主题控制
-        self.scroll.setStyleSheet("border:none;")
-
-        self.msg_container = QWidget()
-        self.msg_container.setObjectName("msg_container")
-        self.msg_layout = QVBoxLayout(self.msg_container)
-        self.msg_layout.setSpacing(14)
+        # 滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("border:none;")
+        scroll_content = QWidget()
+        self.msg_layout = QVBoxLayout(scroll_content)
         self.msg_layout.setAlignment(Qt.AlignTop)
-        self.msg_layout.setContentsMargins(20, 20, 20, 20)
+        self.msg_layout.setSpacing(12)
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
 
-        self.scroll.setWidget(self.msg_container)
-        main_layout.addWidget(self.scroll)
+        # 思考动画
+        self.thinking_bubble = None
+        self.thinking_timer = QTimer()
+        self.thinking_timer.timeout.connect(self.update_thinking_dot)
+        self.dot_index = 0
 
-    def add_bubble(self, text, is_user, time_text=None):
-        print("ChatArea add_bubble 执行，文本：", text)
+        # 当前正在打字的AI气泡
+        self.current_ai_bubble = None
 
-        if time_text is None:
-            from datetime import datetime
-            time_text = datetime.now().strftime("%H:%M")
+    def update_thinking_dot(self):
+        dot_list = ["思考中.", "思考中..", "思考中..."]
+        if self.thinking_bubble:
+            self.thinking_bubble.label.setText(dot_list[self.dot_index % 3])
+            self.dot_index += 1
 
-        bubble = MessageBubble(text, is_user)
-        # 角色标签，去掉固定背景色，适配主题
-        role_label = QLabel()
-        role_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        role_label.setObjectName("role_label")
-        role_label.setText("你" if is_user else "AI")
+    def show_thinking(self):
+        if self.thinking_bubble is not None:
+            return
+        # AI思考气泡靠左
+        wrap_widget = QWidget()
+        h_layout = QHBoxLayout(wrap_widget)
+        h_layout.setContentsMargins(0,0,0,0)
+        bubble = ChatBubble(is_user=False)
+        bubble.label.setText("思考中.")
+        h_layout.addWidget(bubble)
+        h_layout.addStretch()
+        self.msg_layout.addWidget(wrap_widget)
+        self.thinking_bubble = bubble
+        self.thinking_timer.start(400)
 
-        # 时间标签
-        time_label = QLabel(time_text)
-        time_label.setObjectName("time_label")
+    def hide_thinking(self):
+        self.thinking_timer.stop()
+        if self.thinking_bubble:
+            wrap = self.thinking_bubble.parentWidget()
+            self.msg_layout.removeWidget(wrap)
+            wrap.deleteLater()
+            self.thinking_bubble = None
 
-        # 头部：角色 + 时间
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(8)
+    def create_empty_ai_bubble(self):
+        """创建空白AI气泡，用来逐字填充"""
+        wrap_widget = QWidget()
+        h_layout = QHBoxLayout(wrap_widget)
+        h_layout.setContentsMargins(0,0,0,0)
+        bubble = ChatBubble(is_user=False)
+        bubble.label.setText("")
+        h_layout.addWidget(bubble)
+        h_layout.addStretch()
+        self.msg_layout.addWidget(wrap_widget)
+        self.current_ai_bubble = bubble
 
-        # 单条消息行
-        msg_widget = QWidget()
-        msg_layout = QVBoxLayout(msg_widget)
-        msg_layout.setContentsMargins(0, 0, 0, 0)
-        msg_layout.setSpacing(6)
+    def append_ai_char(self, char):
+        """追加单个文字到当前AI气泡"""
+        if self.current_ai_bubble:
+            old_text = self.current_ai_bubble.label.text()
+            self.current_ai_bubble.label.setText(old_text + char)
 
+    def add_bubble(self, text, is_user):
+        """添加完整消息气泡（用户消息用这个）"""
+        wrap_widget = QWidget()
+        h_layout = QHBoxLayout(wrap_widget)
+        h_layout.setContentsMargins(0,0,0,0)
+        bubble = ChatBubble(is_user)
+        bubble.label.setText(text)
         if is_user:
-            # 用户消息：右对齐
-            header_layout.addStretch(1)
-            header_layout.addWidget(time_label)
-            header_layout.addWidget(role_label)
-
-            msg_layout.addLayout(header_layout)
-            msg_layout.addWidget(bubble)
+            h_layout.addStretch()
+            h_layout.addWidget(bubble)
         else:
-            # AI消息：左对齐，添加导出按钮
-            header_layout.addWidget(role_label)
-            header_layout.addWidget(time_label)
-            header_layout.addStretch(1)
+            h_layout.addWidget(bubble)
+            h_layout.addStretch()
+        self.msg_layout.addWidget(wrap_widget)
 
-            # 导出按钮
-            export_word_btn = QPushButton("导出 Word")
-            export_excel_btn = QPushButton("导出 Excel")
-            for btn in [export_word_btn, export_excel_btn]:
-                btn.setObjectName("export_btn")
-            button_layout = QHBoxLayout()
-            button_layout.setContentsMargins(0, 0, 0, 0)
-            button_layout.setSpacing(8)
-            button_layout.addWidget(export_word_btn)
-            button_layout.addWidget(export_excel_btn)
-            button_layout.addStretch(1)
-
-            msg_layout.addLayout(header_layout)
-            msg_layout.addWidget(bubble)
-            msg_layout.addLayout(button_layout)
-
-        # ============ 外层wrapper布局 ============
-        wrapper = QWidget()
-        wrapper_layout = QHBoxLayout(wrapper)
-        wrapper_layout.setContentsMargins(0, 0, 0, 0)
-
-        if is_user:
-            # 用户消息：靠右
-            wrapper_layout.addStretch(1)
-            wrapper_layout.addWidget(msg_widget)
-        else:
-            # AI消息：靠左
-            wrapper_layout.addWidget(msg_widget, stretch=1)
-
-        self.msg_layout.addWidget(wrapper)
-
-        # 自动滚动到底部
-        self.msg_container.adjustSize()
-        bar = self.scroll.verticalScrollBar()
-        bar.setValue(bar.maximum())
-
-    # ===================== 新增 clear 方法（和add_bubble同级缩进！）=====================
     def clear(self):
-        # 清空所有消息气泡
+        # 清空所有消息
         while self.msg_layout.count() > 0:
             item = self.msg_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        self.thinking_bubble = None
+        self.current_ai_bubble = None
+        self.thinking_timer.stop()

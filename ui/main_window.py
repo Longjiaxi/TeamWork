@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
 from ui.chat_area import ChatArea
+from ui.git_backup_page import GitBackupWindow
 
 
 class AIRequestThread(QThread):
@@ -112,6 +113,8 @@ class MainWindow(QMainWindow):
 
         self.title_bar = TitleBar()
         self.title_bar.switch_theme_signal.connect(self.change_global_theme)
+        # ==========新增：绑定代码同步按钮信号==========
+        self.title_bar.sync_code_signal.connect(self.open_git_sync_dialog)
         main_layout.addWidget(self.title_bar)
 
         h_layout = QHBoxLayout()
@@ -137,7 +140,6 @@ class MainWindow(QMainWindow):
         chat_layout.addWidget(self.chat_display, stretch=1)
 
         # ✅ 已删除原来遮挡界面的多余空白QWidget！
-
         self.input_bar = InputBar()
         self.input_bar.setObjectName("InputBar")
         chat_layout.addWidget(self.input_bar)
@@ -179,6 +181,11 @@ class MainWindow(QMainWindow):
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
+
+    # ==========新增：打开Git同步弹窗函数==========
+    def open_git_sync_dialog(self):
+        win = GitBackupWindow(self)
+        win.exec()
 
     def new_chat(self):
         self.chat_display.clear()
@@ -234,7 +241,6 @@ class MainWindow(QMainWindow):
             if hasattr(widget, "chat_name") and widget.chat_name == chat_name:
                 self.current_editing_chat_item = item
                 break
-
         print("切换对话，保存当前编辑item：", self.current_editing_chat_item)
         print(f"【DEBUG】切换对话名称：{chat_name}")
         print(f"【DEBUG】全部对话存储keys：{list(self.conversation_store.keys())}")

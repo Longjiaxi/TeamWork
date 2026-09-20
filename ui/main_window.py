@@ -104,6 +104,12 @@ class MainWindow(QMainWindow):
         self.current_editing_chat_item = None
         self.conversation_store = {}
 
+        # 新增：打字动画定时器
+        self.type_timer = QTimer()
+        self.type_timer.timeout.connect(self.type_one_char)
+        self.type_text_buffer = ""
+        self.type_index = 0
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
@@ -179,6 +185,14 @@ class MainWindow(QMainWindow):
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
+
+    # 新增：逐字渲染回调
+    def type_one_char(self):
+        if self.type_index < len(self.type_text_buffer):
+            self.chat_display.append_ai_char(self.type_text_buffer[self.type_index])
+            self.type_index += 1
+        else:
+            self.type_timer.stop()
 
     def new_chat(self):
         self.chat_display.clear()
@@ -336,6 +350,9 @@ class MainWindow(QMainWindow):
             chat_name = chat_item_widget.chat_name
             self.conversation_store[chat_name] = self.context_history.copy()
 
+        # 展示思考动画
+        self.chat_display.show_thinking()
+
         self.ai_thread = AIRequestThread(self.context_history, text)
         self.ai_thread.finish_signal.connect(self.receive_ai_finish)
         self.ai_thread.start()
@@ -366,7 +383,17 @@ class MainWindow(QMainWindow):
         print("AI片段：", chunk_text)
 
     def receive_ai_finish(self, full_text):
-        self.add_chat_bubble(full_text, is_user=False)
+        # 隐藏思考动画
+        self.chat_display.hide_thinking()
+        # 开启逐字打字
+        self.type_text_buffer = full_text
+        self.type_index = 0
+        # =========【这里控制打字速度，单位毫秒，数字越大越慢】=========
+        self.type_timer.setInterval(80)
+        # ==========================================================
+        self.chat_display.create_empty_ai_bubble()
+        self.type_timer.start()
+
         self.context_history.append({"role": "assistant", "content": full_text})
 
         if self.current_editing_chat_item is not None:

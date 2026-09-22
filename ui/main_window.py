@@ -134,7 +134,6 @@ class MainWindow(QMainWindow):
 
         self.sidebar = Sidebar()
         h_layout.addWidget(self.sidebar)
-        self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
 
         # 右侧分割线
         divider = QFrame()
@@ -157,16 +156,18 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.func_select_page)
         h_layout.addWidget(self.stack, stretch=1)
 
-        # 侧边栏信号绑定
+        # ==========侧边栏信号绑定【新版】==========
         self.sidebar.new_chat_clicked.connect(self.new_chat)
         self.sidebar.chat_switch.connect(self.switch_conversation)
         self.sidebar.chat_delete.connect(self.delete_conversation)
+        self.sidebar.enter_batch_mode.connect(self.on_enter_batch)
+        self.sidebar.exit_batch_mode.connect(self.on_exit_batch)
+
         self.input_bar.sig_send_text.connect(self.on_send_text)
         self.input_bar.sig_file_selected.connect(self.on_select_file)
         self.input_bar.sig_img_selected.connect(self.on_select_image)
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
-        self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
 
         self.change_global_theme(False)
 
@@ -177,9 +178,11 @@ class MainWindow(QMainWindow):
         self.btn_select_all = QPushButton("全选")
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
+
         self.btn_select_all.clicked.connect(self.sidebar.toggle_select_all)
         self.btn_batch_del.clicked.connect(self.batch_delete)
         self.btn_cancel.clicked.connect(self.cancel_batch)
+
         batch_layout.addStretch()
         batch_layout.addWidget(self.btn_select_all)
         batch_layout.addWidget(self.btn_batch_del)
@@ -271,6 +274,7 @@ class MainWindow(QMainWindow):
     def change_global_theme(self, is_dark: bool):
         self.is_dark_mode = is_dark
         self.func_select_page.set_dark_mode(is_dark)
+        self.sidebar.set_dark_mode(is_dark)
         if is_dark:
             self.setStyleSheet(self.STYLE_DARK)
             self.title_bar.theme_btn.setText("🌙 深色模式")
@@ -287,15 +291,16 @@ class MainWindow(QMainWindow):
     def hide_batch_bar(self):
         self.batch_bar.setVisible(False)
 
-    def on_toggle_batch(self):
-        self.batch_mode = not self.batch_mode
-        if self.batch_mode:
-            self.show_batch_bar()
-        else:
-            self.hide_batch_bar()
-        self.sidebar.set_all_chat_item_batch(self.batch_mode)
+    def on_enter_batch(self):
+        self.batch_mode = True
+        self.show_batch_bar()
 
-    def batch_delete(self, selected_names):
+    def on_exit_batch(self):
+        self.batch_mode = False
+        self.hide_batch_bar()
+
+    def batch_delete(self):
+        selected_names = self.sidebar.get_selected_chat_names()
         if not selected_names:
             QMessageBox.information(self, "提示", "请勾选要删除的对话！")
             return
@@ -304,21 +309,11 @@ class MainWindow(QMainWindow):
         if ret == QMessageBox.Yes:
             for name in selected_names:
                 self.delete_conversation(name)
-        self.sidebar.set_all_chat_item_batch(False)
-        self.batch_mode = False
-        self.hide_batch_bar()
-        self.sidebar.close_batch_mode()
-
-    def on_sidebar_menu(self, batch_enable):
-        if batch_enable:
-            self.show_batch_bar()
-        else:
-            self.hide_batch_bar()
+        # 删除完成自动退出批量模式
+        self.sidebar.toggle_batch_mode()
 
     def cancel_batch(self):
-        self.batch_mode = False
-        self.sidebar.set_all_chat_item_batch(False)
-        self.hide_batch_bar()
+        self.sidebar.toggle_batch_mode()
 
     def on_send_text(self, text):
         print("发送文本：", text)
@@ -396,6 +391,3 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         pass
-
-
-

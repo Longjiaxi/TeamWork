@@ -1,120 +1,142 @@
-from PySide6.QtWidgets import (QListWidget, QListWidgetItem, QWidget, QHBoxLayout,
-                               QPushButton, QCheckBox)
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtCore import QSize
+from PySide6.QtWidgets import QListWidget, QListWidgetItem, QWidget, QHBoxLayout, QPushButton, QCheckBox
+from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QSize
+
 
 class ChatItemWidget(QWidget):
     def __init__(self, chat_name):
         super().__init__()
         self.chat_name = chat_name
+        self.is_dark = False
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4,4,4,4)
-        layout.setSpacing(6)
+        layout.setContentsMargins(4,2,4,2)
+        layout.setSpacing(4)
 
         self.checkbox = QCheckBox()
         self.checkbox.setVisible(False)
-        layout.addWidget(self.checkbox)
 
         self.btn_name = QPushButton(chat_name)
-        self.btn_name.setFlat(True)
-        layout.addWidget(self.btn_name, stretch=1)
+        self.btn_name.setStyleSheet("QPushButton{border:none;background:transparent;text-align:left;}")
 
         self.btn_del = QPushButton("×")
         self.btn_del.setFixedSize(24,24)
+
+        layout.addWidget(self.checkbox)
+        layout.addWidget(self.btn_name, stretch=1)
         layout.addWidget(self.btn_del)
-        self.setMinimumHeight(36)
 
-        # 标记批量模式状态
-        self.in_batch_mode = False
+    def set_batch_mode(self, open_batch:bool):
+        self.checkbox.setVisible(open_batch)
 
-    def set_batch_mode(self, enable: bool):
-        self.checkbox.setVisible(enable)
-        self.in_batch_mode = enable
-        if not enable:
-            self.checkbox.setChecked(False)
-
-    # 鼠标点击事件：批量模式点击条目切换勾选，避开删除按钮
-    def mousePressEvent(self, event):
-        if self.in_batch_mode:
-            if not self.btn_del.underMouse():
-                self.checkbox.setChecked(not self.checkbox.isChecked())
-        super().mousePressEvent(event)
+    def set_dark_mode(self, enable:bool):
+        self.is_dark = enable
+        if enable:
+            self.btn_name.setStyleSheet("QPushButton{border:none;background:transparent;text-align:left;color:#eeeeee;}")
+            self.btn_del.setStyleSheet("QPushButton{border:none;background:transparent;color:#cccccc;} QPushButton:hover{color:#ff6b6b;}")
+        else:
+            self.btn_name.setStyleSheet("QPushButton{border:none;background:transparent;text-align:left;color:#222222;}")
+            self.btn_del.setStyleSheet("QPushButton{border:none;background:transparent;color:#666666;} QPushButton:hover{color:#ff4444;}")
 
 
 class Sidebar(QListWidget):
     new_chat_clicked = Signal()
     chat_switch = Signal(str)
     chat_delete = Signal(str)
-    menu_clicked = Signal(bool)
+    enter_batch_mode = Signal()
+    exit_batch_mode = Signal()
 
     def __init__(self):
         super().__init__()
-        self.setObjectName("Sidebar")
-        self.setSpacing(2)
-        self.batch_mode = False
+        self.setFixedWidth(200)
+        self.setSpacing(6)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        font = QFont("微软雅黑", 10)
+        self.setFont(font)
+        self.batch_open = False
+        self.is_dark = False
 
-    def on_menu_click(self):
-        self.batch_mode = not self.batch_mode
-        self.set_all_chat_item_batch(self.batch_mode)
-        self.menu_clicked.emit(self.batch_mode)
+        self.clear()
 
-    def set_all_chat_item_batch(self, enable):
+        # ========== 自定义顶部行：新建聊天 + 批量≡按钮 ==========
+        top_item = QListWidgetItem()
+        top_widget = QWidget()
+        top_widget.setStyleSheet("background: transparent;")
+        top_layout = QHBoxLayout(top_widget)
+        top_layout.setContentsMargins(4, 4, 4, 4)
+        top_layout.setSpacing(4)
+
+        btn_new = QPushButton("＋新建聊天")
+        btn_new.clicked.connect(self.new_chat_clicked.emit)
+        self.add_btn_anim(btn_new)
+
+        self.btn_batch = QPushButton("≡")
+        self.btn_batch.setFixedSize(32, 32)
+        self.add_btn_anim(self.btn_batch)
+        self.btn_batch.clicked.connect(self.toggle_batch_mode)
+
+        top_layout.addWidget(btn_new)
+        top_layout.addStretch()
+        top_layout.addWidget(self.btn_batch)
+
+        top_item.setSizeHint(top_widget.sizeHint())
+        self.addItem(top_item)
+        self.setItemWidget(top_item, top_widget)
+
+        # 分割线
+        sep_item = QListWidgetItem("───────────────────")
+        sep_item.setFlags(Qt.NoItemFlags)
+        self.addItem(sep_item)
+
+    def add_btn_anim(self, btn: QPushButton):
+        anim_down = QPropertyAnimation(btn, b"geometry")
+        anim_down.setDuration(80)
+        anim_up = QPropertyAnimation(btn, b"geometry")
+        anim_up.setDuration(80)
+
+        def pressed():
+            r = btn.geometry()
+            anim_down.setStartValue(r)
+            anim_down.setEndValue(r.adjusted(1, 1, -1, -1))
+            anim_down.start()
+
+        def released():
+            r = btn.geometry()
+            anim_up.setStartValue(r)
+            anim_up.setEndValue(r.adjusted(-1, -1, 1, 1))
+            anim_up.start()
+
+        btn.pressed.connect(pressed)
+        btn.released.connect(released)
+
+    def toggle_batch_mode(self):
+        self.batch_open = not self.batch_open
+        if self.batch_open:
+            self.enter_batch_mode.emit()
+        else:
+            self.exit_batch_mode.emit()
+        self.set_all_chat_item_batch(self.batch_open)
+
+    def set_all_chat_item_batch(self, enable: bool):
         for i in range(self.count()):
             item = self.item(i)
             w = self.itemWidget(item)
-
-
-            # 跳过顶部按钮行、分割线，只处理对话条目
-
             if w and hasattr(w, "set_batch_mode"):
                 w.set_batch_mode(enable)
-
-    def add_chat(self, chat_name):
-        item = QListWidgetItem()
-        chat_widget = ChatItemWidget(chat_name)
-        item.setSizeHint(QSize(200,36))
-        self.addItem(item)
-        self.setItemWidget(item, chat_widget)
-
-        chat_widget.btn_name.clicked.connect(lambda: self.chat_switch.emit(chat_name))
-        chat_widget.btn_del.clicked.connect(lambda: self.chat_delete.emit(chat_name))
-
-
-        chat_widget.btn_name.clicked.connect(lambda checked, w=chat_widget: self.chat_switch.emit(w.chat_name))
-        # 修复：实时读取控件最新chat_name，重命名后也能正确删除
-        chat_widget.btn_del.clicked.connect(lambda checked, w=chat_widget: self.chat_delete.emit(w.chat_name))
-        # 新增聊天默认不显示复选框
-
-        chat_widget.set_batch_mode(False)
-        # 返回聊天控件实例给主窗口
-        return chat_widget
-
-
-        # 批量模式下点击对话名称不切换对话，仅勾选
-        def on_chat_name_click():
-            if not self.batch_mode:
-                self.chat_switch.emit(chat_name)
-        chat_widget.btn_name.clicked.connect(on_chat_name_click)
-
-        chat_widget.btn_del.clicked.connect(lambda: self.chat_delete.emit(chat_name))
-        # =========【修复重点】新建对话自动跟随当前sidebar批量状态，不再强制False=========
-        chat_widget.set_batch_mode(self.batch_mode)
-
 
     def get_selected_chat_names(self):
         selected = []
         for i in range(self.count()):
             item = self.item(i)
             w = self.itemWidget(item)
-            if w and hasattr(w, "checkbox"):
+            if w and hasattr(w, "checkbox") and hasattr(w, "chat_name"):
                 if w.checkbox.isChecked():
                     selected.append(w.chat_name)
         return selected
 
-    # =========新增：全选/取消全选方法，供主窗口【全选】按钮调用=========
     def toggle_select_all(self):
-        all_checked = True
         widget_list = []
+        all_checked = True
         for i in range(self.count()):
             item = self.item(i)
             w = self.itemWidget(item)
@@ -126,19 +148,100 @@ class Sidebar(QListWidget):
         for w in widget_list:
             w.checkbox.setChecked(new_state)
 
-    def close_batch_mode(self):
+    def add_chat(self, chat_name):
+        item = QListWidgetItem()
+        chat_widget = ChatItemWidget(chat_name)
+        item.setSizeHint(QSize(180,36))
+        self.addItem(item)
+        self.setItemWidget(item, chat_widget)
+        # ✅ 修复lambda参数被bool覆盖的bug
+        chat_widget.btn_name.clicked.connect(lambda checked=False, w=chat_widget: self.chat_switch.emit(w.chat_name))
+        chat_widget.btn_del.clicked.connect(lambda checked=False, w=chat_widget: self.chat_delete.emit(w.chat_name))
+        chat_widget.set_batch_mode(self.batch_open)
+        return chat_widget
 
-        self.batch_mode = False
-        self.set_all_chat_item_batch(False)
-        self.menu_clicked.emit(False)
-
-        # 强制关闭批量多选模式
-        self.batch_mode = False
-        self.set_all_chat_item_batch(False)
-
-        self.menu_clicked.emit(False)
-
-        # 补全信号，通知主窗口隐藏底部按钮栏
-        self.menu_clicked.emit(False)
-
-
+    def set_dark_mode(self, enable: bool):
+        self.is_dark = enable
+        if enable:
+            self.setStyleSheet("""
+            QListWidget{
+                background:#1e1e1e;
+                border:1px solid #3a3a3a;
+                border-radius:10px;
+                outline:none;
+            }
+            QListWidget::item{
+                background:transparent;
+            }
+            """)
+            btn_normal_style = """
+            QPushButton {
+                border: none;
+                background-color: #323232;
+                padding: 4px 8px;
+                font-size: 14px;
+                border-radius:6px;
+                color:#eeeeee;
+            }
+            QPushButton:hover {
+                background-color: #3d3d3d;
+            }
+            """
+            btn_batch_style = """
+            QPushButton {
+                border: none;
+                background-color: #323232;
+                font-size: 18px;
+                border-radius:6px;
+                color:#eeeeee;
+            }
+            QPushButton:hover {
+                background-color: #3d3d3d;
+            }
+            """
+        else:
+            self.setStyleSheet("""
+            QListWidget{
+                background:#ffffff;
+                border:1px solid #DCDFE6;
+                border-radius:10px;
+                outline:none;
+            }
+            QListWidget::item{
+                background:transparent;
+            }
+            """)
+            btn_normal_style = """
+            QPushButton {
+                border: none;
+                background-color: #f3f4f6;
+                padding: 4px 8px;
+                font-size: 14px;
+                border-radius:6px;
+                color:#444444;
+            }
+            QPushButton:hover {
+                background-color:#e5e7eb;
+            }
+            """
+            btn_batch_style = """
+            QPushButton {
+                border: none;
+                background-color: #f3f4f6;
+                font-size: 18px;
+                border-radius:6px;
+                color:#444444;
+            }
+            QPushButton:hover {
+                background-color:#e5e7eb;
+            }
+            """
+        self.btn_batch.setStyleSheet(btn_batch_style)
+        for w in self.findChildren(QPushButton):
+            if w != self.btn_batch:
+                w.setStyleSheet(btn_normal_style)
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = self.itemWidget(item)
+            if hasattr(widget, "set_dark_mode"):
+                widget.set_dark_mode(enable)

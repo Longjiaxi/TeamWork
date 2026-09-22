@@ -8,23 +8,20 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QDialog,
-    QComboBox
+    QComboBox,
+    QStackedWidget
 )
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import QThread, Signal, Qt, QPropertyAnimation, QEasingCurve, QTimer
 from ui.sidebar import Sidebar
 from ui.title_bar import TitleBar
 from ui.input_bar import InputBar
-
 from ui.chat_area import ChatArea
-
-from ui.ai_platform_popup import AiPlatformPopup
-
+from ui.fuction_select_page import FunctionSelectPage
 
 from PySide6.QtWidgets import QFileDialog
 import os
 from PySide6.QtWidgets import QMessageBox
-from ui.chat_area import ChatArea
 
 
 class AIRequestThread(QThread):
@@ -65,11 +62,6 @@ class AIRequestThread(QThread):
 
 class MainWindow(QMainWindow):
     # ====================== 主题QSS样式定义 ======================
-
-    STYLE_LIGHT = """ QMainWindow{background-color:#ffffff;} QWidget#ChatArea, QWidget#msg_container{background:#ffffff;} QWidget{background:#ffffff;color:#222222;} QPushButton{background:#f0f0f0;color:#111;border-radius:4px;padding:4px;} QPushButton:hover{background:#e2e2e2;} QPushButton#export_btn{background-color:#ffffff;border:1px solid #d9d9d9;color:#333333;} QPushButton#export_btn:hover{background-color:#f0f7ff;border-color:#409eff;} QLabel#role_label{color:#888888;background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:6px;padding:2px 8px;} QLabel#time_label{color:#999999;} QLabel{color:#222222;} QFrame{background:#f8f8f8;} #TitleBar{background:#f3f3f3;} #InputBar{background-color:#ffffff;} """
-
-    STYLE_DARK = """ QMainWindow{background-color:#1e1e1e;} QWidget#ChatArea, QWidget#msg_container{background:#252525;} QWidget{background:#1e1e1e;color:#eeeeee;} QPushButton{background:#333333;color:#fff;border-radius:4px;padding:4px;} QPushButton:hover{background:#444444;} QPushButton#export_btn{background-color:#333333;border:1px solid #555555;color:#eee;} QPushButton#export_btn:hover{background-color:#404b58;border-color:#409eff;} QLabel#role_label{color:#cccccc;background-color:#333333;border:1px solid #444444;border-radius:6px;padding:2px 8px;} QLabel#time_label{color:#aaaaaa;} QLabel{color:#eeeeee;} QFrame{background:#2b2b2b;} #TitleBar{background:#2d2d2d;} #InputBar{background-color:#252525;} """
-
     STYLE_LIGHT = """
     QMainWindow{background-color:#ffffff;}
     QWidget#ChatArea, QWidget#msg_container{background:#ffffff;}
@@ -114,8 +106,8 @@ class MainWindow(QMainWindow):
         self.is_dark_mode = False
         self.current_editing_chat_item = None
         self.conversation_store = {}
-
-        # 新增：打字动画定时器
+        self.func_select_page = FunctionSelectPage()
+        # 打字动画定时器
         self.type_timer = QTimer()
         self.type_timer.timeout.connect(self.type_one_char)
         self.type_text_buffer = ""
@@ -129,8 +121,10 @@ class MainWindow(QMainWindow):
 
         self.title_bar = TitleBar()
         self.title_bar.switch_theme_signal.connect(self.change_global_theme)
-        # =========绑定加号按钮信号（使用原有add_tab_clicked，修复报错）=========
-        self.title_bar.add_tab_clicked.connect(self.show_ai_popup)
+        # 信号绑定：
+        self.title_bar.home_tab_clicked.connect(self.go_home_page)  # 首页按钮
+        self.title_bar.add_tab_clicked.connect(self.open_function_select_page)  # 智能体旁边加号
+        self.func_select_page.switch_app_page.connect(self.on_app_selected)  # 应用页卡片点击
         main_layout.addWidget(self.title_bar)
 
         h_layout = QHBoxLayout()
@@ -142,86 +136,72 @@ class MainWindow(QMainWindow):
         h_layout.addWidget(self.sidebar)
         self.sidebar.menu_clicked.connect(self.on_sidebar_menu)
 
-        #self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
-
         # 右侧分割线
-
-
         divider = QFrame()
         divider.setFixedWidth(1)
         divider.setStyleSheet("background:#cccccc;")
         h_layout.addWidget(divider)
 
+        # 堆叠页面容器：页面0=聊天界面，页面1=应用选择页
+        self.stack = QStackedWidget()
         chat_area = QWidget()
         chat_layout = QVBoxLayout(chat_area)
         chat_layout.setContentsMargins(12, 12, 12, 12)
         chat_layout.setSpacing(10)
-
         self.chat_display = ChatArea()
         chat_layout.addWidget(self.chat_display, stretch=1)
-
-        # ✅ 已删除原来遮挡界面的多余空白QWidget！
-
         self.input_bar = InputBar()
         self.input_bar.setObjectName("InputBar")
         chat_layout.addWidget(self.input_bar)
+        self.stack.addWidget(chat_area)
+        self.stack.addWidget(self.func_select_page)
+        h_layout.addWidget(self.stack, stretch=1)
 
-        h_layout.addWidget(chat_area, stretch=1)
-
-        # =========实例AI弹窗，父容器是chat_area，只覆盖右侧=========
-        self.ai_popup = AiPlatformPopup(chat_area)
-
-        # =====================信号绑定=====================
+        # 侧边栏信号绑定
         self.sidebar.new_chat_clicked.connect(self.new_chat)
         self.sidebar.chat_switch.connect(self.switch_conversation)
         self.sidebar.chat_delete.connect(self.delete_conversation)
-
         self.input_bar.sig_send_text.connect(self.on_send_text)
         self.input_bar.sig_file_selected.connect(self.on_select_file)
         self.input_bar.sig_img_selected.connect(self.on_select_image)
         self.input_bar.sig_voice_click.connect(self.on_voice_input)
         self.input_bar.sig_clear_click.connect(self.on_clear_chat)
-
-        self.batch_mode = False
         self.sidebar.menu_btn.clicked.connect(self.on_toggle_batch)
 
-        # 默认加载浅色模式
         self.change_global_theme(False)
 
         # 底部批量操作栏
         self.batch_bar = QWidget()
         batch_layout = QHBoxLayout(self.batch_bar)
         self.batch_bar.setVisible(False)
-
         self.btn_select_all = QPushButton("全选")
         self.btn_batch_del = QPushButton("确定删除")
         self.btn_cancel = QPushButton("取消")
-
         self.btn_select_all.clicked.connect(self.sidebar.toggle_select_all)
         self.btn_batch_del.clicked.connect(self.batch_delete)
         self.btn_cancel.clicked.connect(self.cancel_batch)
-
         batch_layout.addStretch()
         batch_layout.addWidget(self.btn_select_all)
         batch_layout.addWidget(self.btn_batch_del)
         batch_layout.addWidget(self.btn_cancel)
         main_layout.addWidget(self.batch_bar)
 
+    # 页面切换槽函数
+    def go_home_page(self):
+        """点击首页，回到聊天界面"""
+        self.stack.setCurrentIndex(0)
 
-    # =========【新增函数：显示AI平台弹窗】=========
-    def show_ai_popup(self):
-        self.ai_popup.update_size(self.ai_popup.parent().rect())
-        self.ai_popup.show()
+    def open_function_select_page(self):
+        """点击智能体旁边加号，打开应用选择页"""
+        self.func_select_page.set_dark_mode(self.is_dark_mode)
+        self.stack.setCurrentWidget(self.func_select_page)
 
-    # =========【新增：窗口缩放事件，弹窗跟随窗口大小】=========
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if hasattr(self, "ai_popup") and self.ai_popup.isVisible():
-            self.ai_popup.update_size(self.ai_popup.parent().rect())
+    def on_app_selected(self, app_name: str):
+        """点击应用卡片，切回聊天界面，不新建对话"""
+        print(f"选中应用：{app_name}")
+        self.stack.setCurrentIndex(0)
 
-    # =========新建对话：自动寻找最小空缺编号=========
-
-    # 新增：逐字渲染回调
+    # 打字动画回调
     def type_one_char(self):
         if self.type_index < len(self.type_text_buffer):
             self.chat_display.append_ai_char(self.type_text_buffer[self.type_index])
@@ -229,12 +209,10 @@ class MainWindow(QMainWindow):
         else:
             self.type_timer.stop()
 
-
     def new_chat(self):
         self.chat_display.clear()
         self.context_history = []
         self.current_editing_chat_item = None
-
         name_list = []
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
@@ -250,7 +228,6 @@ class MainWindow(QMainWindow):
             min_id += 1
         new_name = f"对话{min_id}"
         self.sidebar.add_chat(new_name)
-
         new_item = self.sidebar.item(self.sidebar.count() - 1)
         self.current_editing_chat_item = new_item
         self.conversation_store[new_name] = []
@@ -265,11 +242,9 @@ class MainWindow(QMainWindow):
                 del item
                 print(f"✅已删除对话：{chat_name}")
                 break
-
         if chat_name in self.conversation_store:
             del self.conversation_store[chat_name]
             print(f"🗑️ 已清除对话存储：{chat_name}")
-
         self.chat_display.clear()
         self.context_history = []
         self.current_editing_chat_item = None
@@ -277,54 +252,27 @@ class MainWindow(QMainWindow):
     def switch_conversation(self, chat_name):
         self.chat_display.clear()
         self.context_history = []
-
         for i in range(self.sidebar.count()):
             item = self.sidebar.item(i)
             widget = self.sidebar.itemWidget(item)
             if hasattr(widget, "chat_name") and widget.chat_name == chat_name:
                 self.current_editing_chat_item = item
                 break
-
-        print("切换对话，保存当前编辑item：", self.current_editing_chat_item)
-        print(f"【DEBUG】切换对话名称：{chat_name}")
-        print(f"【DEBUG】全部对话存储keys：{list(self.conversation_store.keys())}")
-
         if chat_name in self.conversation_store:
             msg_list = self.conversation_store[chat_name]
-            print(f"【DEBUG】读取到消息列表长度：{len(msg_list)}")
             self.context_history = msg_list.copy()
             for msg in msg_list:
                 is_user = msg["role"] == "user"
                 self.add_chat_bubble(msg["content"], is_user=is_user)
-        else:
-            print(f"【DEBUG】警告：{chat_name} 不在conversation_store中！")
 
     def toggle_sidebar(self):
         pass
 
-    # ====================== 全局主题切换函数 ======================
     def change_global_theme(self, is_dark: bool):
         self.is_dark_mode = is_dark
+        self.func_select_page.set_dark_mode(is_dark)
         if is_dark:
             self.setStyleSheet(self.STYLE_DARK)
-
-            # 弹窗深色样式
-            self.ai_popup.setStyleSheet("""
-                #AiPlatformPopup{background-color:#252525;}
-                QPushButton{background:#333;border:1px solid #555;color:#eee;}
-                QPushButton:hover{background:#404b58;border-color:#409eff;}
-                QLabel{color:#eee;}
-            """)
-        else:
-            self.setStyleSheet(self.STYLE_LIGHT)
-            # 弹窗浅色样式
-            self.ai_popup.setStyleSheet("""
-                #AiPlatformPopup{background-color:#ffffff;}
-                QPushButton{background:#f8f8f8;border:1px solid #cccccc;color:#222;}
-                QPushButton:hover{background:#e8f2ff;border-color:#409eff;}
-                QLabel{color:#222;}
-            """)
-
             self.title_bar.theme_btn.setText("🌙 深色模式")
         else:
             self.setStyleSheet(self.STYLE_LIGHT)
@@ -332,7 +280,6 @@ class MainWindow(QMainWindow):
 
     def toggle_theme(self):
         pass
-
 
     def show_batch_bar(self):
         self.batch_bar.setVisible(True)
@@ -342,7 +289,6 @@ class MainWindow(QMainWindow):
 
     def on_toggle_batch(self):
         self.batch_mode = not self.batch_mode
-        print(f"【MAIN DEBUG】主窗口批量模式 {self.batch_mode}")
         if self.batch_mode:
             self.show_batch_bar()
         else:
@@ -358,7 +304,6 @@ class MainWindow(QMainWindow):
         if ret == QMessageBox.Yes:
             for name in selected_names:
                 self.delete_conversation(name)
-
         self.sidebar.set_all_chat_item_batch(False)
         self.batch_mode = False
         self.hide_batch_bar()
@@ -377,17 +322,14 @@ class MainWindow(QMainWindow):
 
     def on_send_text(self, text):
         print("发送文本：", text)
-
         if self.current_editing_chat_item is None:
             new_title = text[:15]
-            chat_widget = self.sidebar.add_chat(new_title)
+            self.sidebar.add_chat(new_title)
             self.current_editing_chat_item = self.sidebar.item(self.sidebar.count() - 1)
             self.context_history = []
             self.conversation_store[new_title] = []
-
         self.add_chat_bubble(text, is_user=True)
         self.context_history.append({"role": "user", "content": text})
-
         if len(self.context_history) == 1 and self.current_editing_chat_item is not None:
             chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             if chat_item_widget and hasattr(chat_item_widget, "btn_name"):
@@ -395,19 +337,13 @@ class MainWindow(QMainWindow):
                 new_title = text[:15]
                 chat_item_widget.chat_name = new_title
                 chat_item_widget.btn_name.setText(new_title)
-                print(f"对话自动重命名：{old_title} → {new_title}")
-
                 if old_title in self.conversation_store:
                     self.conversation_store[new_title] = self.conversation_store.pop(old_title)
-
         if self.current_editing_chat_item is not None:
             chat_item_widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = chat_item_widget.chat_name
             self.conversation_store[chat_name] = self.context_history.copy()
-
-        # 展示思考动画
         self.chat_display.show_thinking()
-
         self.ai_thread = AIRequestThread(self.context_history, text)
         self.ai_thread.finish_signal.connect(self.receive_ai_finish)
         self.ai_thread.start()
@@ -425,7 +361,6 @@ class MainWindow(QMainWindow):
         print("清空对话")
         self.chat_display.clear()
         self.context_history = []
-
         if self.current_editing_chat_item is not None:
             widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = widget.chat_name
@@ -438,19 +373,13 @@ class MainWindow(QMainWindow):
         print("AI片段：", chunk_text)
 
     def receive_ai_finish(self, full_text):
-        # 隐藏思考动画
         self.chat_display.hide_thinking()
-        # 开启逐字打字
         self.type_text_buffer = full_text
         self.type_index = 0
-        # =========【这里控制打字速度，单位毫秒，数字越大越慢】=========
         self.type_timer.setInterval(80)
-        # ==========================================================
         self.chat_display.create_empty_ai_bubble()
         self.type_timer.start()
-
         self.context_history.append({"role": "assistant", "content": full_text})
-
         if self.current_editing_chat_item is not None:
             widget = self.sidebar.itemWidget(self.current_editing_chat_item)
             chat_name = widget.chat_name
@@ -469,10 +398,4 @@ class MainWindow(QMainWindow):
         pass
 
 
-if __name__ == "__main__":
-    import sys
 
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())

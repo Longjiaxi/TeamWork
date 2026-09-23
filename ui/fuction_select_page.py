@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGridLayout, QPushButton
 from PySide6.QtCore import Signal
+# =========新增导入AI弹窗类=========
+from ui.ai_platform_popup import AiPlatformPopup
 
 class FunctionSelectPage(QWidget):
     # 新增页面跳转信号
@@ -9,6 +11,8 @@ class FunctionSelectPage(QWidget):
     def __init__(self):
         super().__init__()
         self.is_dark = False
+        # 保存弹窗实例，防止窗口被垃圾回收自动关闭
+        self.ai_pop_window = None
         self.init_ui()
         self.update_style()
 
@@ -30,14 +34,16 @@ class FunctionSelectPage(QWidget):
         for idx,name in enumerate(row0):
             btn = QPushButton(name)
             btn.setFixedSize(130,100)
-            btn.clicked.connect(lambda checked,n=name: self.switch_app_page.emit(n))
+            # 改动：点击按钮触发自定义处理函数
+            btn.clicked.connect(lambda checked,n=name: self.handle_app_click(n))
             grid.addWidget(btn, 0, idx)
             self.button_list.append(btn)
         # 第二行按钮
         for idx,name in enumerate(row1):
             btn = QPushButton(name)
             btn.setFixedSize(130,100)
-            btn.clicked.connect(lambda checked,n=name: self.switch_app_page.emit(n))
+            btn.setFixedSize(130,100)
+            btn.clicked.connect(lambda checked,n=name: self.handle_app_click(n))
             grid.addWidget(btn, 1, idx)
             self.button_list.append(btn)
 
@@ -45,17 +51,25 @@ class FunctionSelectPage(QWidget):
         main_layout.addStretch()
         self.setLayout(main_layout)
 
+    # =========新增：处理应用按钮点击逻辑=========
+    def handle_app_click(self, app_name:str):
+        if app_name == "小程序":
+            # 点击小程序，弹出AI平台弹窗
+            self.ai_pop_window = AiPlatformPopup(self)
+            self.ai_pop_window.show()
+        else:
+            # 其他所有按钮保持原来逻辑，向外发送信号（原有功能完全保留）
+            self.switch_app_page.emit(app_name)
+
     def update_style(self):
         if self.is_dark:
-            page_style = """
-QWidget{
+            page_style = """ QWidget{
     background-color:#1e1e1e;
     border:1px solid #3a3a3a;
     border-radius:12px;
 }
             """
-            btn_style = """
-QPushButton{
+            btn_style = """ QPushButton{
     background-color:#323232;
     border:1px solid #444444;
     border-radius:10px;
@@ -72,15 +86,13 @@ QPushButton:pressed{
             """
             title_style = "color:#eeeeee;"
         else:
-            page_style = """
-QWidget{
+            page_style = """ QWidget{
     background-color:#ffffff;
     border:1px solid #DCDFE6;
     border-radius:12px;
 }
             """
-            btn_style = """
-QPushButton{
+            btn_style = """ QPushButton{
     background-color:#f3f4f6;
     border:1px solid #e5e7eb;
     border-radius:10px;

@@ -1,137 +1,121 @@
-from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel
-from PySide6.QtGui import QIcon, QFont
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QGridLayout, QPushButton, QLabel, QStackedWidget, QHBoxLayout
+)
 from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QIcon
 import webbrowser
 from pathlib import Path
 
 
-class FirstPopup(QWidget):
-    """第一层弹窗：应用按钮"""
-    def __init__(self, parent, second_popup):
-        super().__init__(parent)
-        self.second_popup = second_popup
-        self.setObjectName("AiPlatformPopup")
-        self.setWindowFlags(Qt.Widget)
-        self.setAttribute(Qt.WA_StyledBackground, True)
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(40,40,40,40)
-        layout.setSpacing(30)
-
-        self.btn_app = QPushButton("应用")
-        self.btn_app.setFixedSize(120,45)
-        self.btn_app.clicked.connect(self.open_second)
-        layout.addWidget(self.btn_app, alignment=Qt.AlignCenter)
-
-        self.close_btn = QPushButton("关闭")
-        self.close_btn.setFixedHeight(40)
-        self.close_btn.clicked.connect(self.hide)
-        layout.addWidget(self.close_btn)
-
-        self.setLayout(layout)
-        self.hide()
-        self._rect = None
-
-    def open_second(self):
-        self.hide()
-        if self._rect:
-            self.second_popup.update_size(self._rect)
-        self.second_popup.show()
-
-    def update_size(self, rect):
-        self._rect = rect
-        self.setGeometry(rect)
-
-
-class AiSelectPopup(QWidget):
-    """第二层弹窗：6个AI按钮【优化版】"""
+class AiPlatformPopup(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("AiPlatformPopup")
-        self.setWindowFlags(Qt.Widget)
         self.setAttribute(Qt.WA_StyledBackground, True)
+        # 铺满父容器（右侧对话区域）
+        if parent:
+            self.setGeometry(0, 0, parent.width(), parent.height())
+        self.setStyleSheet("background-color:#ffffff;")
 
-        self.icon_root = Path(__file__).parent.parent / "icons"
-        print("图标文件夹路径：", self.icon_root)
+        self.icon_dir = Path(__file__).parent.parent / "icons"
 
         self.ai_list = [
-            {"name":"豆包", "icon":"doubao.png", "url":"https://www.doubao.com"},
-            {"name":"Kimi", "icon":"kimi-.png", "url":"https://kimi.moonshot.cn"},
-            {"name":"通义千问", "icon":"qianwen.png", "url":"https://tongyi.aliyun.com"},
-            {"name":"文心一言", "icon":"wenxin.png", "url":"https://yiyan.baidu.com"},
-            {"name":"DeepSeek", "icon":"deepseek.png", "url":"https://chat.deepseek.com"},
-            {"name":"ChatGLM", "icon":"chatglm.png", "url":"https://chatglm.cn"},
+            {"name": "ChatGLM",   "icon": "chatglm.png",   "url": "https://chatglm.cn/"},
+            {"name": "DeepSeek",  "icon": "deepseek.png",  "url": "https://www.deepseek.com/"},
+            {"name": "豆包",      "icon": "doubao.png",    "url": "https://www.doubao.com/"},
+            {"name": "Kimi",      "icon": "kimi-.png",     "url": "https://kimi.moonshot.cn/"},
+            {"name": "通义千问",  "icon": "qianwen.png",   "url": "https://tongyi.aliyun.com/"},
+            {"name": "文心一言",  "icon": "wenxin.png",    "url": "https://yiyan.baidu.com/"},
         ]
 
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(60, 40, 60, 40)
-        main_layout.setSpacing(32)
+        self.stack = QStackedWidget()
+        self.page_select = QWidget()
 
-        # 标题
-        title_label = QLabel("AI应用入口")
-        title_font = QFont()
-        title_font.setPointSize(18)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color:#222;")
-        main_layout.addWidget(title_label)
+        self.init_select_page()
 
-        row1 = QHBoxLayout()
-        row1.setSpacing(24)
-        row2 = QHBoxLayout()
-        row2.setSpacing(24)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(self.stack)
+        self.setLayout(main_layout)
+
+        self.stack.addWidget(self.page_select)
+        self.stack.setCurrentWidget(self.page_select)
+
+    def init_select_page(self):
+        layout = QVBoxLayout(self.page_select)
+        layout.setContentsMargins(20, 30, 20, 20)
+        layout.setSpacing(30)
+
+        title = QLabel("选择AI平台")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size:22px; font-weight:bold; color:#222;")
+        layout.addWidget(title)
+
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(20)
+        grid_layout.setContentsMargins(0,0,0,0)
 
         for index, item in enumerate(self.ai_list):
             btn = QPushButton()
-            btn.setFixedSize(160,160)
-            icon_path = self.icon_root / item["icon"]
+            btn.setFixedSize(160, 160)
+
+            icon_path = self.icon_dir / item["icon"]
             btn.setIcon(QIcon(str(icon_path)))
-            btn.setIconSize(QSize(72,72))
+            btn.setIconSize(QSize(80, 80))
             btn.setText(item["name"])
-            # 卡片圆角、阴影、悬浮变色样式
+
             btn.setStyleSheet("""
-                QPushButton{
-                    background-color:#ffffff;
-                    border:1px solid #e8e8e8;
-                    border-radius:18px;
-                    text-align:center;
-                    padding-top:18px;
-                    font-size:14px;
-                    color:#222222;
+                QPushButton {
+                    text-align: bottom;
+                    padding-bottom: 12px;
+                    font-size: 14px;
+                    border-radius: 12px;
+                    border: 1px solid #e5e7eb;
+                    background-color: #ffffff;
+                    color: #333;
                 }
-                QPushButton:hover{
-                    border:1px solid #409eff;
-                    background-color:#f5faff;
+                QPushButton:hover {
+                    background-color: #f3f4f6;
+                    border-color: #d1d5db;
                 }
-                QPushButton:pressed{
-                    background-color:#e8f4ff;
+                QPushButton:pressed {
+                    background-color: #e5e7eb;
                 }
             """)
-            url = item["url"]
-            btn.clicked.connect(lambda checked, u=url: webbrowser.open(u))
-            if index <3:
-                row1.addWidget(btn)
-            else:
-                row2.addWidget(btn)
+            # 点击按钮，调用系统浏览器打开网页
+            btn.clicked.connect(lambda checked=False, url=item["url"]: webbrowser.open(url))
+            row = index // 3
+            col = index % 3
+            grid_layout.addWidget(btn, row, col)
 
-        main_layout.addLayout(row1)
-        main_layout.addLayout(row2)
-        main_layout.addStretch()
+        layout.addLayout(grid_layout)
+        layout.addStretch()
 
-        close_btn = QPushButton("关闭")
-        close_btn.setFixedHeight(40)
-        close_btn.clicked.connect(self.hide)
-        main_layout.addWidget(close_btn)
-
-        self.setLayout(main_layout)
-        self.hide()
-
-    def update_size(self, rect):
-        self.setGeometry(rect)
-
-
-# 保留AiPlatformPopup类名，main_window完全不用修改
-class AiPlatformPopup(FirstPopup):
-    def __init__(self, parent):
-        self._second_pop = AiSelectPopup(parent)
-        super().__init__(parent, self._second_pop)
+        # 底部返回关闭按钮
+        bottom_btn_layout = QHBoxLayout()
+        bottom_btn_layout.setContentsMargins(0,10,0,10)
+        self.close_popup_btn = QPushButton("← 返回关闭")
+        self.close_popup_btn.setFixedHeight(42)
+        self.close_popup_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4f46e5;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 8px;
+                padding:0 16px;
+                border:none;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+            }
+            QPushButton:pressed {
+                background-color: #3730a3;
+            }
+        """)
+        self.close_popup_btn.clicked.connect(self.hide)
+        bottom_btn_layout.addStretch()
+        bottom_btn_layout.addWidget(self.close_popup_btn)
+        bottom_btn_layout.addStretch()
+        layout.addLayout(bottom_btn_layout)
